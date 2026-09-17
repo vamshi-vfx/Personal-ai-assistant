@@ -47,18 +47,20 @@ async function askGemini(p){
 }
 
 // ===== 5. VISION (EYES) =====
-camBtn.onclick=()=>imgInput.click();
-imgInput.onchange=()=>{
-  const file=imgInput.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const base64=reader.result.split(',')[1];
-    const q=input.value.trim()||'What do you see? Describe briefly.';
-    add('YOU: [IMAGE] '+q,'user'); input.value='';
-    askVision(base64,file.type,q);
+if(camBtn && imgInput){
+  camBtn.onclick=()=>imgInput.click();
+  imgInput.onchange=()=>{
+    const file=imgInput.files[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const base64=reader.result.split(',')[1];
+      const q=input.value.trim()||'What do you see? Describe briefly.';
+      add('YOU: [IMAGE] '+q,'user'); input.value='';
+      askVision(base64,file.type,q);
+    };
+    reader.readAsDataURL(file);
   };
-  reader.readAsDataURL(file);
-};
+}
 
 async function askVision(base64,mime,q){
   add('J.A.R.V.I.S: Analyzing image...','ai');
@@ -81,10 +83,12 @@ async function askVision(base64,mime,q){
 
 // ===== 6. SPEECH RECOGNITION =====
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-const rec=new SR(); rec.lang='en-US'; // Telugu కి 'te-IN'
-rec.onresult=(e)=>{const t=e.results[0][0].transcript;add('YOU: '+t,'user');askGemini(t);};
-micBtn.onclick=()=>{rec.start();micBtn.innerText='LISTENING...';};
-rec.onend=()=>{micBtn.innerText='🎙️';};
+if(SR && micBtn){
+  const rec=new SR(); rec.lang='en-US'; // Telugu కి 'te-IN'
+  rec.onresult=(e)=>{const t=e.results[0][0].transcript;add('YOU: '+t,'user');askGemini(t);};
+  micBtn.onclick=()=>{rec.start();micBtn.innerText='LISTENING...';};
+  rec.onend=()=>{micBtn.innerText='🎙️';};
+}
 
 // ===== 7. TEXT-TO-SPEECH =====
 let voices=[]; function loadVoices(){ voices=speechSynthesis.getVoices(); }
@@ -95,6 +99,6 @@ function speak(t){ const u=new SpeechSynthesisUtterance(t); u.rate=1.05; u.pitch
 // ===== 8. SEND + CLEAR =====
 document.getElementById('send').onclick=()=>{ const t=input.value.trim(); if(!t)return;
   add('YOU: '+t,'user'); input.value=''; askGemini(t); };
-clearBtn.onclick=()=>{ MEMORY=[]; saveMemory(); chat.innerHTML=''; add('SYSTEM: Memory cleared.','ai'); };
+if(clearBtn){ clearBtn.onclick=()=>{ MEMORY=[]; saveMemory(); chat.innerHTML=''; add('SYSTEM: Memory cleared.','ai'); }; }
 
 function add(t,w){const d=document.createElement('div');d.className='msg '+w;d.innerText=t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;}

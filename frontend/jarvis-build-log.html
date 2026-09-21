@@ -56,6 +56,14 @@ body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opac
 .edition-content{transition:opacity .45s,transform .45s,visibility .45s;transform-origin:top}.edition-content.is-hidden{display:none!important}.edition-slide.is-active{outline:2px solid var(--cyan);box-shadow:0 0 34px rgba(82,233,255,.28),0 25px 60px rgba(0,0,0,.35)}.pc-slide.is-active{outline-color:var(--gold);box-shadow:0 0 34px rgba(255,209,102,.25),0 25px 60px rgba(0,0,0,.35)}
 
 .waitlist-box{margin-top:22px;padding:18px 20px;border:1px solid rgba(82,233,255,.35);border-radius:18px;background:linear-gradient(135deg,rgba(82,233,255,.11),rgba(151,93,255,.13));box-shadow:0 0 28px rgba(82,233,255,.12)}.waitlist-box strong{display:block;color:#fff;font-size:1.05rem;margin-bottom:5px}.waitlist-box p{margin:0 0 13px;color:var(--muted);font-size:.9rem}.waitlist-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;background:linear-gradient(90deg,var(--cyan),#9f7bff);color:#07101b;font-weight:900;text-decoration:none;box-shadow:0 0 20px rgba(82,233,255,.3)}.waitlist-btn:hover{transform:translateY(-2px);filter:brightness(1.08)}
+
+/* CINEMATIC MOTION LAYER */
+body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:20;opacity:.07;background:repeating-linear-gradient(180deg,rgba(255,255,255,.12) 0,rgba(255,255,255,.12) 1px,transparent 1px,transparent 5px);mix-blend-mode:screen;animation:scanline 14s linear infinite}@keyframes scanline{from{transform:translateY(-18px)}to{transform:translateY(18px)}}
+body{background-size:180% 180%;animation:bgDrift 22s ease-in-out infinite alternate}@keyframes bgDrift{0%{background-position:0% 0%}100%{background-position:100% 100%}}
+.reveal{opacity:0;transform:translateY(28px) scale(.985);filter:blur(4px);transition:opacity .8s cubic-bezier(.2,.8,.2,1),transform .8s cubic-bezier(.2,.8,.2,1),filter .8s ease}.reveal.revealed{opacity:1;transform:none;filter:none}.reveal:nth-child(2){transition-delay:.08s}.reveal:nth-child(3){transition-delay:.16s}.reveal:nth-child(4){transition-delay:.24s}
+.edition-slide,.card,.pc-card,.feature,.stat,.step,.announcement,.waitlist-box{will-change:transform}.edition-slide:hover,.pc-card:hover,.card:hover{animation:cardFloat 2.4s ease-in-out infinite alternate}@keyframes cardFloat{from{transform:translateY(0) rotateX(0)}to{transform:translateY(-5px) rotateX(1deg)}}
+.feature-grid .feature{animation:featureGlow 4s ease-in-out infinite alternate}.feature-grid .feature:nth-child(2n){animation-delay:1s}@keyframes featureGlow{from{box-shadow:0 0 0 rgba(82,233,255,0)}to{box-shadow:0 0 24px rgba(82,233,255,.12)}}
+.announcement-badge{animation:badgePulse 2.8s ease-in-out infinite}@keyframes badgePulse{0%,100%{opacity:.72;box-shadow:0 0 0 rgba(82,233,255,0)}50%{opacity:1;box-shadow:0 0 22px rgba(82,233,255,.28)}}
 </style>
 </head>
 <body>
@@ -96,5 +104,12 @@ body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opac
   slides.forEach(slide=>slide.addEventListener('click',e=>{e.preventDefault();showEdition(slide.dataset.edition,true);}));
   const initial=location.hash==='#pc-edition'?'pc':'mobile';
   showEdition(initial,false);
+})();
+</script><script>
+(function(){
+  const targets=document.querySelectorAll('main > section, .sectionhead, .edition-slide, .stat, .card, .pc-card, .feature, .step, .announcement, .waitlist-box');
+  targets.forEach(el=>el.classList.add('reveal'));
+  const io=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('revealed');io.unobserve(entry.target)}}),{threshold:.12});
+  targets.forEach(el=>io.observe(el));
 })();
 </script></body></html>

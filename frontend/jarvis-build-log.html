@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="te">
-<head>
+<head><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#07101b">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KALKI / J.A.R.V.I.S Mobile Edition — Build Log</title>
@@ -123,7 +123,7 @@ body{background-size:180% 180%;animation:bgDrift 22s ease-in-out infinite altern
 <script>
 (function(){
  const root=document.body;
- root.insertAdjacentHTML('beforeend',`<div class="kx-tools"><button class="kx-btn" id="kx-lang">తెలుగు / EN</button><button class="kx-btn" id="kx-awake">◉ WAKE KALKI</button><button class="kx-btn" id="kx-install">📱 INSTALL</button></div><div class="kx-modal" id="kx-modal" hidden><div class="kx-modal-card"><button class="kx-close" id="kx-close">×</button><div id="kx-modal-body"></div></div></div>`);
+ root.insertAdjacentHTML('beforeend',`<div class="kx-tools"><button class="kx-btn" id="kx-lang">తెలుగు / EN</button><button class="kx-btn" id="kx-awake">◉ WAKE KALKI</button><button class="kx-btn" id="kx-install">📱 INSTALL</button><button class="kx-btn" id="kx-share">🔗 SHARE</button><button class="kx-btn" id="kx-stats">📈 STATS</button></div><div class="kx-modal" id="kx-modal" hidden><div class="kx-modal-card"><button class="kx-close" id="kx-close">×</button><div id="kx-modal-body"></div></div></div>`);
  const toast=t=>{let x=document.createElement('div');x.className='kx-toast';x.textContent=t;root.append(x);setTimeout(()=>x.remove(),2800)};
  const beep=(f=520)=>{try{let c=new AudioContext(),o=c.createOscillator(),g=c.createGain();o.frequency.value=f;o.type='sine';g.gain.value=.035;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.12)}catch(e){}};
  document.querySelectorAll('main > section').forEach((sec,i)=>{if(i===2)return;});
@@ -137,6 +137,7 @@ body{background-size:180% 180%;animation:bgDrift 22s ease-in-out infinite altern
  const q=document.querySelector('#kx-query');if(q)q.oninput=()=>{let v=q.value.toLowerCase();document.querySelectorAll('.card,.pc-card').forEach(c=>c.style.display=(!v||c.textContent.toLowerCase().includes(v))?'':'none')};
  document.querySelector('#kx-awake').onclick=()=>{beep(740);toast('KALKI ONLINE · Ready for your command');document.querySelector('.assistant-bubble')?.animate([{transform:'scale(1)'},{transform:'scale(1.15)'},{transform:'scale(1)'}],{duration:700})};
  let lang='en';document.querySelector('#kx-lang').onclick=()=>{lang=lang==='en'?'te':'en';root.classList.toggle('lang-te',lang==='te');root.classList.toggle('lang-en',lang==='en');toast(lang==='te'?'KALKI Telugu mode':'KALKI English mode')};
+ document.querySelector('#kx-share').onclick=async()=>{let u=location.href.split('#')[0];if(navigator.share){navigator.share({title:'KALKI Personal AI Assistant',text:'Explore the KALKI build journey',url:u})}else{await navigator.clipboard?.writeText(u);toast('Website link copied ✓')}};document.querySelector('#kx-stats').onclick=()=>{let c=localStorage.getItem('kxClicks')||0;toast('Local preview stats · YouTube/WhatsApp clicks: '+c)};
  document.querySelector('#kx-install').onclick=async()=>{if(window.__kxInstall){window.__kxInstall.prompt();await window.__kxInstall.userChoice;window.__kxInstall=null}else toast('Browser menu → Add to Home Screen')};
  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__kxInstall=e});
  const ann=document.querySelector('.announcement');if(ann&&!ann.querySelector('.kx-form'))ann.insertAdjacentHTML('beforeend',`<div class="waitlist-box"><strong>📬 Get KALKI launch alerts</strong><p>Save your interest on this device and join the early-access community.</p><form class="kx-form" id="kx-form"><input required type="email" placeholder="Your email for launch alerts"><button>JOIN EARLY ACCESS</button></form></div>`);

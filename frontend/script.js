@@ -85,7 +85,7 @@ async function handleTools(text){
 
   if(t.includes('password')){
     const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-    let p=''; for(let i=0;i<12;i++) p+=chars[Math.floor(Math.random()*chars.length)];
+    const groups=['ABCDEFGHJKLMNPQRSTUVWXYZ','abcdefghijkmnpqrstuvwxyz','23456789','!@#$%'];     const all=groups.join('');     const secureIndex=max=>{const limit=0x100000000-(0x100000000%max);const a=new Uint32Array(1);do{crypto.getRandomValues(a);}while(a[0]>=limit);return a[0]%max;};     let p=groups.map(g=>g[secureIndex(g.length)]).join('');     while(p.length<16)p+=all[secureIndex(all.length)];     p=p.split('');for(let i=p.length-1;i>0;i--){const j=secureIndex(i+1);[p[i],p[j]]=[p[j],p[i]];}p=p.join('');
     return 'Your strong password: '+p;
   }
 

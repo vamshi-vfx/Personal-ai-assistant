@@ -33,7 +33,7 @@ async function handleTools(text){
     });
   }
 
-  const m=t.match(/(\d+)\s*(minute|నిమిష)/);
+  const m=t.match(/(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|నిమిషాలు?|సెకండ్లు?|గంటలు?)/i);
   if((t.includes('timer')||t.includes('టైమర్'))&&m){
     const mins=parseInt(m[1]);
     setTimeout(()=>speak(`Timer done! ${mins} minutes completed, Boss.`), mins*60000);

@@ -36,7 +36,7 @@ async function handleTools(text){
   const m=t.match(/(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|నిమిషాలు?|సెకండ్లు?|గంటలు?)/i);
   if((t.includes('timer')||t.includes('టైమర్'))&&m){
     const amount=parseInt(m[1]); const unit=m[2].toLowerCase(); const factor=/^(hours?|hrs?|h|గంట)/.test(unit)?3600000:/^(seconds?|secs?|s|సెకండ్)/.test(unit)?1000:60000; const duration=amount*factor; if(duration>86400000)return 'Timer limit is 24 hours.';
-    setTimeout(()=>speak(`Timer done! ${amount} ${unit} completed.`),duration);
+    setTimeout(()=>speak(`టైమర్ పూర్తైంది! ${amount} ${unit} అయ్యాయి.`),duration);
     return `Timer set for ${amount} ${unit}.`;
   }
 
@@ -94,7 +94,7 @@ async function handleTools(text){
     try{
       const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(q));
       const d=await r.json();
-      return d.extract ? d.extract : 'I could not find that, Boss.';
+      return d.extract ? 'Wikipedia summary: '+d.extract : 'I could not find that, Boss.';
     }catch(e){ return 'Search error, Boss.'; }
   }
 
@@ -125,7 +125,7 @@ async function callGemini(p){
   for(const m of MODELS){
     try{
       const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+API_KEY,
-        {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:contents})});
+        {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:"You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using Telugu script for Telugu and English for technical terms. Keep replies concise, conversational, empathetic, and easy to say aloud. Avoid robotic or overly formal wording, repetitive greetings, and calling the user Boss. Match the user's language and context."}]},contents:contents})});
       const data=await res.json();
       if(data.error){ lastErr=new Error(data.error.message);
         if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated/i.test(data.error.message)) continue;
@@ -136,10 +136,10 @@ async function callGemini(p){
   throw lastErr;
 }
 
-async function askGemini(p){
+function telugishToolReply(r){let p;if(r.startsWith('The time is '))return 'ఇప్పుడు టైమ్ '+r.slice(12).replace(', Boss.','')+'.';if(r.startsWith('It is '))return 'ఇప్పుడు '+r.split(' ')[2]+'°C ఉంది.';if(r.startsWith('Timer set for '))return 'సరే, '+r.slice(14).replace('.','')+'కి timer పెట్టాను.';if(r.startsWith('Timer limit'))return '24 గంటల కంటే ఎక్కువ timer set చేయలేను.';if(r.startsWith('You rolled '))return 'డైస్‌లో '+r.split(' ')[2]+' వచ్చింది!';if(r==='Heads, Boss.')return 'కాయిన్‌లో Heads వచ్చింది!';if(r==='Tails, Boss.')return 'కాయిన్‌లో Tails వచ్చింది!';if(r.startsWith('I need location permission'))return 'Weather కోసం location permission ఇవ్వాలి.';if(r.startsWith('Weather service error'))return 'Weather సమాచారం ఇప్పుడే దొరకలేదు.';if(r.includes(' — by ')){p=r.split(' — by ');return 'ఇదిగో ఒక thought: “'+p[0]+'” — '+p[1];}if(r.startsWith('Wikipedia summary: '))return 'Wikipediaలో సారాంశం: '+r.slice(19);if(r.startsWith('Top tech news: ')return 'ఇవాళ్టి top tech headlines: '+r.slice(15);if(r.startsWith('In Telugu: '))return 'తెలుగులో: '+r.slice(11);if(r.includes(' US dollars is about ')){p=r.split(' US dollars is about ');return '$'+p[0]+' అంటే సుమారుగా ₹'+p[1].split(' Indian rupees')[0]+' అవుతుంది.';}if(r.includes(' means: ')){p=r.split(' means: ');return p[0]+' అంటే: '+p.slice(1).join(' means: ');}if(r.startsWith('Could not retrieve'))return 'ఈ పదానికి meaning ఇప్పుడే దొరకలేదు. కొద్దిసేపటికి మళ్లీ try చేద్దాం.';if(r.startsWith('Your strong password: '))return 'ఇదిగో strong password: '+r.slice('Your strong password: '.length);if(r.startsWith('Opening YouTube'))return 'YouTube ఓపెన్ చేస్తున్నాను.';if(r.startsWith('Opening Google'))return 'Google ఓపెన్ చేస్తున్నాను.';if(r.startsWith('Searching YouTube for '))return 'YouTubeలో '+r.slice(22).replace(', Boss.','')+' కోసం వెతుకుతున్నాను.';if(r.startsWith('Bitcoin is ')){p=r.slice(11).split(' dollars, ');return 'Bitcoin ధర ఇప్పుడు $'+p[0]+' (సుమారు ₹'+p[1].split(' rupees')[0]+').';}if(r.includes(' ... '))return 'ఇదిగో ఒక joke: '+r;if(r.endsWith(', Boss.'))return r.slice(0,-7)+'.';return r;}async function askGemini(p){
   add('J.A.R.V.I.S: Thinking...','ai');
   try{
-    const toolReply=await handleTools(p);
+    let toolReply=await handleTools(p); if(toolReply)toolReply=telugishToolReply(toolReply);
     if(toolReply){
       MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:toolReply}); saveMemory();
       chat.lastChild.innerText='J.A.R.V.I.S: '+toolReply; speak(toolReply); return;
@@ -172,7 +172,7 @@ async function askVision(base64,mime,q){
     try{
       const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+API_KEY,
         {method:"POST",headers:{"Content-Type":"application/json"},
-         body:JSON.stringify({contents:[{parts:[{text:q},{inline_data:{mime_type:mime,data:base64}}]}]})});
+         body:JSON.stringify({systemInstruction:{parts:[{text:"You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using Telugu script for Telugu and English for technical terms. Keep replies concise, conversational, empathetic, and easy to say aloud. Avoid robotic or overly formal wording, repetitive greetings, and calling the user Boss."}]},contents:[{parts:[{text:q},{inline_data:{mime_type:mime,data:base64}}]}]})});
       const data=await res.json();
       if(data.error){ lastErr=new Error(data.error.message);
         if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated/i.test(data.error.message)) continue;
@@ -192,8 +192,8 @@ micBtn.onclick=()=>{if(!rec){add('SYSTEM: Voice input is not supported in this b
 if(rec)rec.onend=()=>{micBtn.innerText='🎙️';};
 let voices=[]; function loadVoices(){ voices=speechSynthesis.getVoices(); }
 loadVoices(); speechSynthesis.onvoiceschanged=loadVoices;
-function speak(t){ const u=new SpeechSynthesisUtterance(t); u.rate=1.05; u.pitch=0.85;
-  const v=voices.find(v=>v.lang.startsWith('en')); if(v) u.voice=v; speechSynthesis.speak(u); }
+function speak(t){ const u=new SpeechSynthesisUtterance(t); u.rate=0.96; u.pitch=1.0;
+  const isTelugu=/[అ-౿]/.test(t);/[\u0C00-\u0C7F]/.test(t); const v=isTelugu?voices.find(v=>/^te[-_]/i.test(v.lang)):voices.find(v=>/^en[-_]/i.test(v.lang)); if(v){u.voice=v;u.lang=v.lang;}else if(isTelugu)u.lang='te-IN'; speechSynthesis.speak(u); }
 
 // ===== 7. SEND + CLEAR =====
 document.getElementById('send').onclick=()=>{ const t=input.value.trim(); if(!t)return;

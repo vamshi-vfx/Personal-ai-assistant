@@ -18,7 +18,7 @@ MEMORY.forEach(m=> add((m.role==='user'?'YOU: ':'J.A.R.V.I.S: ')+m.text, m.role=
 async function handleTools(text){
   const t = text.toLowerCase();
 
-  if(t.includes('time')||t.includes('టైమ్')||t.includes('సమయం'))
+  if(/\btime\b/.test(t)||t.includes('టైమ్')||t.includes('సమయం'))
     return 'The time is '+new Date().toLocaleTimeString()+', Boss.';
 
   if(t.includes('weather')||t.includes('వాతావరణం')){

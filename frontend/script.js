@@ -18,7 +18,7 @@ MEMORY.forEach(m=> add((m.role==='user'?'YOU: ':'J.A.R.V.I.S: ')+m.text, m.role=
 async function handleTools(text){
   const t = text.toLowerCase();
 
-  if(/\btime\b/.test(t)||t.includes('టైమ్')||t.includes('సమయం'))
+  if(/\btime\b/.test(t)||t.includes('టైమ్')||t.includes('సమయం')||t.includes('samayam'))
     return 'The time is '+new Date().toLocaleTimeString()+', Boss.';
 
   if(t.includes('weather')||t.includes('వాతావరణం')){
@@ -98,8 +98,8 @@ async function handleTools(text){
     }catch(e){ return 'Search error, Boss.'; }
   }
 
-  if(t.includes('open youtube')){ window.open('https://youtube.com'); return 'Opening YouTube, Boss.'; }
-  if(t.includes('open google')){ window.open('https://google.com'); return 'Opening Google, Boss.'; }
+  if(t.includes('open youtube')||t.includes('youtube open')){ window.open('https://youtube.com'); return 'Opening YouTube, Boss.'; }
+  if(t.includes('open google')||t.includes('google open')){ window.open('https://google.com'); return 'Opening Google, Boss.'; }
 
   if(t.includes('play ')||t.includes('youtube ')){
     const q=text.replace(/play |youtube (search )?/i,'').trim();
@@ -144,7 +144,7 @@ function telugishToolReply(r){let p;if(r.startsWith('The time is '))return 'ఇ�
       MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:toolReply}); saveMemory();
       chat.lastChild.innerText='J.A.R.V.I.S: '+toolReply; speak(toolReply); return;
     }
-  }catch(e){}
+  }catch(e){console.error('Tool command failed:',e);chat.lastChild.innerText='J.A.R.V.I.S: Command execute cheyyalekapoyanu. Inko sari try cheddam.';return;}
   try{
     const reply=await callGemini(p);
     MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:reply}); saveMemory();
@@ -190,10 +190,10 @@ const rec=SR?new SR():null; if(rec)rec.lang='en-US';
 if(rec)rec.onresult=(e)=>{const t=e.results[0][0].transcript;add('YOU: '+t,'user');askGemini(t);};
 micBtn.onclick=()=>{if(!rec){add('SYSTEM: Voice input is not supported in this browser.','ai');return;}try{rec.start();micBtn.innerText='LISTENING...';}catch(e){micBtn.innerText='🎙️';}};
 if(rec)rec.onend=()=>{micBtn.innerText='🎙️';};
-let voices=[]; function loadVoices(){ voices=speechSynthesis.getVoices(); }
-loadVoices(); speechSynthesis.onvoiceschanged=loadVoices;
-function speak(t){ const u=new SpeechSynthesisUtterance(t); u.rate=0.96; u.pitch=1.0;
-  const isTelugu=/[\u0C00-\u0C7F]/.test(t); const v=isTelugu?voices.find(v=>/^te[-_]/i.test(v.lang)):voices.find(v=>/^en[-_]/i.test(v.lang)); if(v){u.voice=v;u.lang=v.lang;}else if(isTelugu)u.lang='te-IN'; speechSynthesis.speak(u); }
+let voices=[]; function loadVoices(){ if(!('speechSynthesis' in window))return; try{voices=window.speechSynthesis.getVoices();}catch(e){voices=[];} }
+loadVoices(); if('speechSynthesis' in window)window.speechSynthesis.onvoiceschanged=loadVoices;
+function speak(t){ if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtterance==='undefined')return; const u=new SpeechSynthesisUtterance(t); u.rate=0.96; u.pitch=1.0;
+  const isTelugu=/[\u0C00-\u0C7F]/.test(t); const v=isTelugu?voices.find(v=>/^te[-_]/i.test(v.lang)):voices.find(v=>/^en[-_]/i.test(v.lang)); if(v){u.voice=v;u.lang=v.lang;}else if(isTelugu)u.lang='te-IN'; try{window.speechSynthesis.speak(u);}catch(e){console.warn('Speech output unavailable:',e);} }
 
 // ===== 7. SEND + CLEAR =====
 document.getElementById('send').onclick=()=>{ const t=input.value.trim(); if(!t)return;

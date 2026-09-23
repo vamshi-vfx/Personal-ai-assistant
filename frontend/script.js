@@ -35,9 +35,9 @@ async function handleTools(text){
 
   const m=t.match(/(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|నిమిషాలు?|సెకండ్లు?|గంటలు?)/i);
   if((t.includes('timer')||t.includes('టైమర్'))&&m){
-    const mins=parseInt(m[1]);
-    setTimeout(()=>speak(`Timer done! ${mins} minutes completed, Boss.`), mins*60000);
-    return `Timer set for ${mins} minutes, Boss.`;
+    const amount=parseInt(m[1]); const unit=m[2].toLowerCase(); const factor=/^(hours?|hrs?|h|గంట)/.test(unit)?3600000:/^(seconds?|secs?|s|సెకండ్)/.test(unit)?1000:60000; const duration=amount*factor; if(duration>86400000)return 'Timer limit is 24 hours.';
+    setTimeout(()=>speak(`Timer done! ${amount} ${unit} completed.`),duration);
+    return `Timer set for ${amount} ${unit}.`;
   }
 
   if(t.includes('dice')) return 'You rolled '+(Math.floor(Math.random()*6)+1)+', Boss.';
@@ -79,8 +79,8 @@ async function handleTools(text){
 
   if(t.includes('meaning')){
     const w=text.replace(/.*meaning (of )?/i,'').replace(/[?.]/g,'').trim();
-    try{ const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w));
-      const d=await r.json(); return w+' means: '+d[0].meanings[0].definitions[0].definition; }catch(e){ return 'Word not found, Boss.'; }
+    try{ const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),{signal:AbortSignal.timeout(7000)});
+      const d=await r.json(); return w+' means: '+d[0].meanings[0].definitions[0].definition; }catch(e){ try{const r=await fetch('https://api.datamuse.com/words?sp='+encodeURIComponent(w)+'&md=d&max=1',{signal:AbortSignal.timeout(7000)});const d=await r.json();const def=d?.[0]?.defs?.[0];if(def)return w+' means: '+def.replace(/^[a-z]	/,'');}catch(x){} return 'Could not retrieve the word meaning right now. Try again later.'; }
   }
 
   if(t.includes('password')){
@@ -186,10 +186,10 @@ async function askVision(base64,mime,q){
 
 // ===== 6. SPEECH + TTS =====
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-const rec=new SR(); rec.lang='en-US';
-rec.onresult=(e)=>{const t=e.results[0][0].transcript;add('YOU: '+t,'user');askGemini(t);};
-micBtn.onclick=()=>{rec.start();micBtn.innerText='LISTENING...';};
-rec.onend=()=>{micBtn.innerText='🎙️';};
+const rec=SR?new SR():null; if(rec)rec.lang='en-US';
+if(rec)rec.onresult=(e)=>{const t=e.results[0][0].transcript;add('YOU: '+t,'user');askGemini(t);};
+micBtn.onclick=()=>{if(!rec){add('SYSTEM: Voice input is not supported in this browser.','ai');return;}try{rec.start();micBtn.innerText='LISTENING...';}catch(e){micBtn.innerText='🎙️';}};
+if(rec)rec.onend=()=>{micBtn.innerText='🎙️';};
 let voices=[]; function loadVoices(){ voices=speechSynthesis.getVoices(); }
 loadVoices(); speechSynthesis.onvoiceschanged=loadVoices;
 function speak(t){ const u=new SpeechSynthesisUtterance(t); u.rate=1.05; u.pitch=0.85;

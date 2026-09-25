@@ -8,7 +8,10 @@ let MEMORY = [];
 try {
   const storedMemory = JSON.parse(localStorage.getItem('jarvis_memory') || '[]');
   if (Array.isArray(storedMemory)) {
-    MEMORY = storedMemory.filter(m => m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string');
+    MEMORY = storedMemory.filter(m => m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string' && !(m.role === 'model' && /^(?:Your strong password:|ఇదిగో strong password:)/i.test(m.text)));
+    if (MEMORY.length !== storedMemory.length) localStorage.setItem('jarvis_memory', JSON.stringify(MEMORY));
+  } else {
+    localStorage.removeItem('jarvis_memory');
   }
 } catch (e) {
   // Recover from malformed local storage instead of breaking app startup.
@@ -24,108 +27,220 @@ const imgInput=document.getElementById('img-input');
 MEMORY.forEach(m=> add((m.role==='user'?'YOU: ':'J.A.R.V.I.S: ')+m.text, m.role==='user'?'user':'ai'));
 
 // ===== 3. TOOLS (THE HANDS) — 15 TOOLS =====
-async function handleTools(text){
-  const t = text.toLowerCase();
+async function fetchToolJson(url, options={}, timeoutMs=10000){
+  const controller=typeof AbortController==='function'?new AbortController():null;
+  const timeoutId=controller?setTimeout(()=>controller.abort(),timeoutMs):null;
+  try{
+    const response=await fetch(url,{...options,...(controller?{signal:controller.signal}:{})});
+    if(!response.ok) throw new Error('Request failed ('+response.status+').');
+    return await response.json();
+  }finally{
+    if(timeoutId) clearTimeout(timeoutId);
+  }
+}
 
-  if(/\btime\b/.test(t)||t.includes('టైమ్')||t.includes('సమయం')||t.includes('samayam'))
+async function handleTools(text){
+  const t=text.toLowerCase();
+
+  if(/^\s*(?:please\s+)?(?:open\s+youtube|youtube\s+open|youtube)(?:\s+please)?[.!?]*\s*$/i.test(text)){ window.open('https://youtube.com','_blank','noopener,noreferrer'); return 'Opening YouTube, Boss.'; }
+  if(/^\s*(?:please\s+)?(?:open\s+google|google\s+open|google)(?:\s+please)?[.!?]*\s*$/i.test(text)){ window.open('https://google.com','_blank','noopener,noreferrer'); return 'Opening Google, Boss.'; }
+
+  const urlCommand=text.match(/^\s*(?:open|visit|go to)\s+(https?:\/\/\S+)\s*$/i);
+  if(urlCommand){
+    try{
+      const destination=new URL(urlCommand[1]);
+      if(destination.protocol!=='https:'&&destination.protocol!=='http:') return 'Only http and https links can be opened.';
+      window.open(destination.href,'_blank','noopener,noreferrer');
+      return 'Opening '+destination.hostname+', Boss.';
+    }catch(e){ return 'That link does not look valid.'; }
+  }
+
+  if(/^\s*(?:google\s+search|search\s+(?:on\s+)?google)(?:\s+for)?\s*$/i.test(text)) return 'Tell me what to search for on Google.';
+  const googleSearch=text.match(/^\s*(?:google\s+search|search\s+(?:on\s+)?google)(?:\s+for)?\s+(.+?)\s*$/i);
+  if(googleSearch){
+    const query=googleSearch[1].trim();
+    if(!query) return 'Tell me what to search for on Google.';
+    window.open('https://www.google.com/search?q='+encodeURIComponent(query),'_blank','noopener,noreferrer');
+    return 'Searching Google for '+query+', Boss.';
+  }
+
+  if(/^\s*(?:play|youtube\s+search|search\s+(?:on\s+)?youtube)(?:\s+for)?\s*$/i.test(text)) return 'Tell me a song or search phrase for YouTube.';
+  const playMatch=text.match(/^\s*play\s+(.+?)\s*$/i);
+  const youtubeMatch=text.match(/^\s*youtube(?:\s+search)?(?:\s+for)?\s+(.+?)\s*$/i);
+  const searchYoutubeMatch=text.match(/^\s*search\s+(?:on\s+)?youtube(?:\s+for)?\s+(.+?)\s*$/i);
+  const videoQuery=(playMatch||youtubeMatch||searchYoutubeMatch)?.[1]?.trim();
+  if(videoQuery){
+    window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(videoQuery),'_blank','noopener,noreferrer');
+    return 'Searching YouTube for '+videoQuery+', Boss.';
+  }
+
+  if(/^\s*(?:search|look up)(?:\s+for)?\s*$/i.test(text)) return 'Tell me what to search for.';
+  const searchMatch=text.match(/^\s*(?:search|look up)\s+(?:for\s+)?(.+?)\s*$/i);
+  if(searchMatch){
+    const query=searchMatch[1].trim();
+    if(!query) return 'Tell me what to search for.';
+    try{
+      const url='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&srsearch='+encodeURIComponent(query)+'&format=json&origin=*';
+      const data=await fetchToolJson(url);
+      const result=data?.query?.search?.[0];
+      if(!result) return 'I could not find that, Boss.';
+      const snippet=String(result.snippet||'').replace(/<[^>]*>/g,'').replace(/&quot;/g,'"').replace(/&#0?39;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+      return 'Wikipedia summary: '+result.title+(snippet?'. '+snippet:'');
+    }catch(e){ return 'Search error, Boss.'; }
+  }
+  if(/\b(?:what time(?: is it)?|what is the time|current time|tell me the time|time now)\b/.test(t)||/^\s*time(?:\s+please)?[.!?]*\s*$/.test(t)||t.includes('టైమ్')||t.includes('సమయం')||t.includes('samayam'))
     return 'The time is '+new Date().toLocaleTimeString()+', Boss.';
 
   if(t.includes('weather')||t.includes('వాతావరణం')){
-    return await new Promise(res=>{
-      navigator.geolocation.getCurrentPosition(async p=>{
+    if(!navigator.geolocation) return 'I need location permission for weather, Boss.';
+    return await new Promise(resolve=>{
+      navigator.geolocation.getCurrentPosition(async position=>{
         try{
-          const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.coords.latitude}&longitude=${p.coords.longitude}&current_weather=true`);
-          const d=await r.json();
-          res(`It is ${d.current_weather.temperature} degrees Celsius now, Boss.`);
-        }catch(e){ res('Weather service error, Boss.'); }
-      }, ()=> res('I need location permission for weather, Boss.'));
+          const url='https://api.open-meteo.com/v1/forecast?latitude='+position.coords.latitude+'&longitude='+position.coords.longitude+'&current_weather=true';
+          const data=await fetchToolJson(url);
+          const temperatureValue=data?.current_weather?.temperature ?? data?.current?.temperature_2m;
+          const temperature=Number(temperatureValue);
+          if(temperatureValue===null||temperatureValue===undefined||!Number.isFinite(temperature)) throw new Error('Weather data unavailable.');
+          resolve('It is '+temperature+' degrees Celsius now, Boss.');
+        }catch(e){ resolve('Weather service error, Boss.'); }
+      },()=>resolve('I need location permission for weather, Boss.'),{timeout:10000,maximumAge:300000});
     });
   }
 
-  const m=t.match(/(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|నిమిషాలు?|సెకండ్లు?|గంటలు?)/i);
-  if((t.includes('timer')||t.includes('టైమర్'))&&m){
-    const amount=parseInt(m[1]); const unit=m[2].toLowerCase(); const factor=/^(hours?|hrs?|h|గంట)/.test(unit)?3600000:/^(seconds?|secs?|s|సెకండ్)/.test(unit)?1000:60000; const duration=amount*factor; if(duration>86400000)return 'Timer limit is 24 hours.';
-    setTimeout(()=>speak(`టైమర్ పూర్తైంది! ${amount} ${unit} అయ్యాయి.`),duration);
-    return `Timer set for ${amount} ${unit}.`;
+  const timerCommand=t.includes('timer')||t.includes('టైమర్');
+  if(timerCommand){
+    const m=t.match(/(-?\d+(?:\.\d+)?)\s*(seconds?|secs?|sec|s|minutes?|mins?|min|m|hours?|hrs?|hr|h|నిమిషం|నిమిషాలు|సెకను|సెకన్లు|గంట|గంటలు)(?=\s|$|[.,!?])/i);
+    if(!m) return 'Timer format: say “timer 5 minutes”.';
+    const amount=Number(m[1]);
+    const unit=m[2].toLowerCase();
+    if(!Number.isFinite(amount)||amount<=0) return 'Timer duration must be greater than zero.';
+    const factor=/^(?:h|hr|hrs|hour|hours|గంట)/.test(unit)?3600000:/^(?:s|sec|secs|second|seconds|సెకను|సెకన్లు)/.test(unit)?1000:60000;
+    const duration=amount*factor;
+    if(duration>86400000) return 'Timer limit is 24 hours.';
+    setTimeout(()=>speak('టైమర్ పూర్తైంది! '+amount+' '+unit+' అయ్యాయి.'),duration);
+    return 'Timer set for '+amount+' '+unit+'.';
   }
 
-  if(t.includes('dice')) return 'You rolled '+(Math.floor(Math.random()*6)+1)+', Boss.';
-  if(t.includes('coin')) return Math.random()<0.5?'Heads, Boss.':'Tails, Boss.';
+  if(/\bdice\b/.test(t)) return 'You rolled '+(Math.floor(Math.random()*6)+1)+', Boss.';
+  if(/\bcoin\b/.test(t)) return Math.random()<0.5?'Heads, Boss.':'Tails, Boss.';
 
-  if(t.includes('joke')){
-    try{ const r=await fetch('https://official-joke-api.appspot.com/random_joke');
-      const d=await r.json(); return d.setup+' ... '+d.punchline; }catch(e){ return 'Joke service error, Boss.'; }
+  if(/\bjoke\b/.test(t)){
+    try{
+      const data=await fetchToolJson('https://official-joke-api.appspot.com/random_joke');
+      if(typeof data?.setup!=='string'||typeof data?.punchline!=='string') throw new Error('Invalid joke response.');
+      return data.setup+' ... '+data.punchline;
+    }catch(e){
+      try{
+        const backup=await fetchToolJson('https://v2.jokeapi.dev/joke/Any?type=twopart&safe-mode');
+        if(!backup?.error&&backup?.type==='twopart'&&typeof backup.setup==='string'&&typeof backup.delivery==='string') return backup.setup+' ... '+backup.delivery;
+      }catch(x){}
+      const fallback=[['Why did the computer go to the doctor?','It had a virus.'],['Why was the math book sad?','It had too many problems.']];
+      const joke=fallback[Math.floor(Math.random()*fallback.length)];
+      return joke[0]+' ... '+joke[1];
+    }
   }
 
   if(t.includes('quote')||t.includes('motivate')){
-    try{ const r=await fetch('https://zenquotes.io/api/random');
-      const d=await r.json(); return d[0].q+' — by '+d[0].a; }catch(e){ return 'Quote service error, Boss.'; }
+    try{
+      const data=await fetchToolJson('https://zenquotes.io/api/random');
+      const quote=data?.[0];
+      if(typeof quote?.q!=='string'||typeof quote?.a!=='string') throw new Error('Invalid quote response.');
+      return quote.q+' — by '+quote.a;
+    }catch(e){ return 'A small step today is still progress. — by J.A.R.V.I.S'; }
   }
 
-  if(t.includes('news')){
+  if(/\bnews\b/.test(t)){
     try{
-      const r=await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
-      const ids=await r.json(); let out='Top tech news: ';
-      for(let i=0;i<3;i++){
-        const it=await fetch('https://hacker-news.firebaseio.com/v0/item/'+ids[i]+'.json');
-        const d=await it.json(); out+=(i+1)+'. '+d.title+'. ';
-      }
-      return out;
+      const ids=await fetchToolJson('https://hacker-news.firebaseio.com/v0/topstories.json');
+      if(!Array.isArray(ids)||!ids.length) throw new Error('No news stories available.');
+      const stories=await Promise.all(ids.slice(0,9).map(id=>fetchToolJson('https://hacker-news.firebaseio.com/v0/item/'+id+'.json').catch(()=>null)));
+      const titles=stories.filter(item=>typeof item?.title==='string').slice(0,3);
+      if(!titles.length) throw new Error('No news stories available.');
+      return 'Top tech news: '+titles.map((item,index)=>(index+1)+'. '+item.title+'.').join(' ');
     }catch(e){ return 'News service error, Boss.'; }
   }
 
-  if(t.includes('translate')){
-    const q=text.replace(/translate (this )?/i,'').trim()||'hello';
-    try{ const r=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(q)+'&langpair=en|te');
-      const d=await r.json(); return 'In Telugu: '+d.responseData.translatedText; }catch(e){ return 'Translate error, Boss.'; }
+  if(/^\s*translate\b/i.test(text)){
+    const query=text.replace(/^\s*translate(?:\s+this)?\b/i,'').trim();
+    if(!query) return 'Translate format: say “translate <text>” for Telugu.';
+    try{
+      const url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(query)+'&langpair=en|te';
+      const data=await fetchToolJson(url);
+      const translated=data?.responseData?.translatedText;
+      if((data?.responseStatus!==undefined&&Number(data.responseStatus)!==200)||typeof translated!=='string'||!translated.trim()) throw new Error('Translation unavailable.');
+      return 'In Telugu: '+translated;
+    }catch(e){ return 'Translate error, Boss.'; }
   }
 
   if(t.includes('dollar')||t.includes('usd')||t.includes('exchange')){
-    const amt=parseFloat((t.match(/(\d+)/)||[])[1]||1);
-    try{ const r=await fetch('https://open.er-api.com/v6/latest/USD');
-      const d=await r.json(); return amt+' US dollars is about '+Math.round(amt*d.rates.INR)+' Indian rupees, Boss.'; }catch(e){ return 'Currency service error, Boss.'; }
+    const amountMatch=t.match(/[-+]?\d+(?:\.\d+)?/);
+    const amount=amountMatch?Number(amountMatch[0]):1;
+    if(!Number.isFinite(amount)||amount<=0) return 'Enter a dollar amount greater than zero.';
+    let rate;
+    try{
+      const data=await fetchToolJson('https://open.er-api.com/v6/latest/USD');
+      rate=Number(data?.rates?.INR);
+      if(!Number.isFinite(rate)||rate<=0) rate=undefined;
+    }catch(e){}
+    if(!Number.isFinite(rate)){
+      try{
+        const backup=await fetchToolJson('https://api.frankfurter.dev/v1/latest?base=USD&symbols=INR');
+        rate=Number(backup?.rates?.INR);
+        if(!Number.isFinite(rate)||rate<=0) rate=undefined;
+      }catch(e){}
+    }
+    if(!Number.isFinite(rate)||rate<=0) return 'Currency service error, Boss.';
+    return amount+' US dollars is about '+Math.round(amount*rate)+' Indian rupees, Boss.';
   }
 
   if(t.includes('meaning')){
-    const w=text.replace(/.*meaning (of )?/i,'').replace(/[?.]/g,'').trim();
-    try{ const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w),{signal:AbortSignal.timeout(7000)});
-      const d=await r.json(); return w+' means: '+d[0].meanings[0].definitions[0].definition; }catch(e){ try{const r=await fetch('https://api.datamuse.com/words?sp='+encodeURIComponent(w)+'&md=d&max=1',{signal:AbortSignal.timeout(7000)});const d=await r.json();const def=d?.[0]?.defs?.[0];if(def)return w+' means: '+def.replace(/^[a-z]	/,'');}catch(x){} return 'Could not retrieve the word meaning right now. Try again later.'; }
+    const match=text.match(/\bmeaning(?:\s+of)?\s+(.+)$/i);
+    const word=match?.[1]?.trim().replace(/[?.!]+$/,'');
+    if(!word) return 'Meaning format: say “meaning of <word>”.';
+    try{
+      const data=await fetchToolJson('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(word),{},7000);
+      const definition=data?.[0]?.meanings?.[0]?.definitions?.[0]?.definition;
+      if(typeof definition==='string'&&definition.trim()) return word+' means: '+definition;
+    }catch(e){}
+    try{
+      const data=await fetchToolJson('https://api.datamuse.com/words?sp='+encodeURIComponent(word)+'&md=d&max=1',{},7000);
+      const definition=data?.[0]?.defs?.[0]?.replace(/^[a-z]\s+/i,'').trim();
+      if(definition) return word+' means: '+definition;
+    }catch(e){}
+    return 'Could not retrieve the word meaning right now. Try again later.';
   }
 
   if(t.includes('password')){
-    const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-    const groups=['ABCDEFGHJKLMNPQRSTUVWXYZ','abcdefghijkmnpqrstuvwxyz','23456789','!@#$%'];     const all=groups.join('');     const secureIndex=max=>{const limit=0x100000000-(0x100000000%max);const a=new Uint32Array(1);do{crypto.getRandomValues(a);}while(a[0]>=limit);return a[0]%max;};     let p=groups.map(g=>g[secureIndex(g.length)]).join('');     while(p.length<16)p+=all[secureIndex(all.length)];     p=p.split('');for(let i=p.length-1;i>0;i--){const j=secureIndex(i+1);[p[i],p[j]]=[p[j],p[i]];}p=p.join('');
-    return 'Your strong password: '+p;
+    const secureCrypto=globalThis.crypto;
+    if(!secureCrypto||typeof secureCrypto.getRandomValues!=='function') return 'Secure password generation is unavailable in this browser.';
+    const groups=['ABCDEFGHJKLMNPQRSTUVWXYZ','abcdefghijkmnpqrstuvwxyz','23456789','!@#$%'];
+    const all=groups.join('');
+    const secureIndex=max=>{
+      const limit=0x100000000-(0x100000000%max);
+      const values=new Uint32Array(1);
+      do{ secureCrypto.getRandomValues(values); }while(values[0]>=limit);
+      return values[0]%max;
+    };
+    let password=groups.map(group=>group[secureIndex(group.length)]).join('');
+    while(password.length<16) password+=all[secureIndex(all.length)];
+    password=password.split('');
+    for(let i=password.length-1;i>0;i--){const j=secureIndex(i+1);[password[i],password[j]]=[password[j],password[i]];}
+    return 'Your strong password: '+password.join('');
   }
 
-  if(t.includes('search')){
-    const q=text.replace(/search (for )?/i,'').trim();
-    try{
-      const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(q));
-      const d=await r.json();
-      return d.extract ? 'Wikipedia summary: '+d.extract : 'I could not find that, Boss.';
-    }catch(e){ return 'Search error, Boss.'; }
-  }
-
-  if(t.includes('open youtube')||t.includes('youtube open')){ window.open('https://youtube.com'); return 'Opening YouTube, Boss.'; }
-  if(t.includes('open google')||t.includes('google open')){ window.open('https://google.com'); return 'Opening Google, Boss.'; }
-
-  if(t.includes('play ')||t.includes('youtube ')){
-    const q=text.replace(/play |youtube (search )?/i,'').trim();
-    if(q){ window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(q)); return 'Searching YouTube for '+q+', Boss.'; }
-  }
 
   if(t.includes('bitcoin')||t.includes('crypto')){
     try{
-      const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,inr');
-      const d=await r.json();
-      return `Bitcoin is ${d.bitcoin.usd} dollars, ${d.bitcoin.inr} rupees, Boss.`;
+      const data=await fetchToolJson('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,inr');
+      const usdValue=data?.bitcoin?.usd,inrValue=data?.bitcoin?.inr;
+      const usd=Number(usdValue),inr=Number(inrValue);
+      if(usdValue===null||usdValue===undefined||inrValue===null||inrValue===undefined||!Number.isFinite(usd)||!Number.isFinite(inr)||usd<=0||inr<=0) throw new Error('Crypto price unavailable.');
+      return 'Bitcoin is '+usd+' dollars, '+inr+' rupees, Boss.';
     }catch(e){ return 'Crypto service error, Boss.'; }
   }
 
   return null;
 }
-
 // ===== 4. GEMINI BRAIN =====
 async function callGemini(p){
   if(!API_KEY) throw new Error('Gemini API key is missing. Reload the page and enter your key.');
@@ -155,13 +270,65 @@ async function callGemini(p){
   throw lastErr || new Error('Gemini request failed.');
 }
 
-function telugishToolReply(r){let p;if(r.startsWith('The time is '))return 'ఇప్పుడు టైమ్ '+r.slice(12).replace(', Boss.','')+'.';if(r.startsWith('It is '))return 'ఇప్పుడు '+r.split(' ')[2]+'°C ఉంది.';if(r.startsWith('Timer set for '))return 'సరే, '+r.slice(14).replace('.','')+'కి timer పెట్టాను.';if(r.startsWith('Timer limit'))return '24 గంటల కంటే ఎక్కువ timer set చేయలేను.';if(r.startsWith('You rolled '))return 'డైస్‌లో '+r.split(' ')[2]+' వచ్చింది!';if(r==='Heads, Boss.')return 'కాయిన్‌లో Heads వచ్చింది!';if(r==='Tails, Boss.')return 'కాయిన్‌లో Tails వచ్చింది!';if(r.startsWith('I need location permission'))return 'Weather కోసం location permission ఇవ్వాలి.';if(r.startsWith('Weather service error'))return 'Weather సమాచారం ఇప్పుడే దొరకలేదు.';if(r.includes(' — by ')){p=r.split(' — by ');return 'ఇదిగో ఒక thought: “'+p[0]+'” — '+p[1];}if(r.startsWith('Wikipedia summary: '))return 'Wikipediaలో సారాంశం: '+r.slice(19);if(r.startsWith('Top tech news: '))return 'ఇవాళ్టి top tech headlines: '+r.slice(15);if(r.startsWith('In Telugu: '))return 'తెలుగులో: '+r.slice(11);if(r.includes(' US dollars is about ')){p=r.split(' US dollars is about ');return '$'+p[0]+' అంటే సుమారుగా ₹'+p[1].split(' Indian rupees')[0]+' అవుతుంది.';}if(r.includes(' means: ')){p=r.split(' means: ');return p[0]+' అంటే: '+p.slice(1).join(' means: ');}if(r.startsWith('Could not retrieve'))return 'ఈ పదానికి meaning ఇప్పుడే దొరకలేదు. కొద్దిసేపటికి మళ్లీ try చేద్దాం.';if(r.startsWith('Your strong password: '))return 'ఇదిగో strong password: '+r.slice('Your strong password: '.length);if(r.startsWith('Opening YouTube'))return 'YouTube ఓపెన్ చేస్తున్నాను.';if(r.startsWith('Opening Google'))return 'Google ఓపెన్ చేస్తున్నాను.';if(r.startsWith('Searching YouTube for '))return 'YouTubeలో '+r.slice(22).replace(', Boss.','')+' కోసం వెతుకుతున్నాను.';if(r.startsWith('Bitcoin is ')){p=r.slice(11).split(' dollars, ');return 'Bitcoin ధర ఇప్పుడు $'+p[0]+' (సుమారు ₹'+p[1].split(' rupees')[0]+').';}if(r.includes(' ... '))return 'ఇదిగో ఒక joke: '+r;if(r.endsWith(', Boss.'))return r.slice(0,-7)+'.';return r;}async function askGemini(p){
+function telugishToolReply(r){
+  let parts;
+  if(r.startsWith('The time is ')) return 'ఇప్పుడు టైమ్ '+r.slice(12).replace(', Boss.','')+'.';
+  if(r.startsWith('It is ')) return 'ఇప్పుడు '+r.split(' ')[2]+'°C ఉంది.';
+  if(r.startsWith('Timer set for ')) return 'సరే, '+r.slice(14).replace('.','')+'కి timer పెట్టాను.';
+  if(r.startsWith('Timer limit')) return '24 గంటల కంటే ఎక్కువ timer set చేయలేను.';
+  if(r.startsWith('Timer format:')) return 'Timer set చేయడానికి “timer 5 minutes” లాగా duration చెప్పు.';
+  if(r.startsWith('Timer duration must')) return 'Timer duration 0 కంటే ఎక్కువ ఉండాలి.';
+  if(r.startsWith('You rolled ')) return 'డైస్‌లో '+r.split(' ')[2]+' వచ్చింది!';
+  if(r==='Heads, Boss.') return 'కాయిన్‌లో Heads వచ్చింది!';
+  if(r==='Tails, Boss.') return 'కాయిన్‌లో Tails వచ్చింది!';
+  if(r.startsWith('I need location permission')) return 'Weather కోసం location permission ఇవ్వాలి.';
+  if(r.startsWith('Weather service error')) return 'Weather సమాచారం ఇప్పుడే దొరకలేదు.';
+  if(r.includes(' — by ')){ parts=r.split(' — by '); return 'ఇదిగో ఒక thought: “'+parts[0]+'” — '+parts[1]; }
+  if(r.startsWith('Wikipedia summary: ')) return 'Wikipediaలో సారాంశం: '+r.slice(19);
+  if(r.startsWith('Top tech news: ')) return 'ఇవాళ్టి top tech headlines: '+r.slice(15);
+  if(r.startsWith('In Telugu: ')) return 'తెలుగులో: '+r.slice(11);
+  if(r.includes(' US dollars is about ')){ parts=r.split(' US dollars is about '); return '$'+parts[0]+' అంటే సుమారుగా ₹'+parts[1].split(' Indian rupees')[0]+' అవుతుంది.'; }
+  if(r.includes(' means: ')){ parts=r.split(' means: '); return parts[0]+' అంటే: '+parts.slice(1).join(' means: '); }
+  if(r.startsWith('Could not retrieve')) return 'ఈ పదానికి meaning ఇప్పుడే దొరకలేదు. కొద్దిసేపటికి మళ్లీ try చేద్దాం.';
+  if(r.startsWith('Your strong password: ')) return 'ఇదిగో strong password: '+r.slice('Your strong password: '.length);
+  if(r.startsWith('Secure password generation')) return 'ఈ browserలో secure password generate చేయడం అందుబాటులో లేదు.';
+  if(r.startsWith('Opening YouTube')) return 'YouTube ఓపెన్ చేస్తున్నాను.';
+  if(r.startsWith('Opening Google')) return 'Google ఓపెన్ చేస్తున్నాను.';
+  if(r.startsWith('Opening ')) return r.replace(', Boss.','')+' చేస్తున్నాను.';
+  if(r.startsWith('Searching Google for ')) return 'Googleలో '+r.slice(21).replace(', Boss.','')+' కోసం వెతుకుతున్నాను.';
+  if(r.startsWith('Searching YouTube for ')) return 'YouTubeలో '+r.slice(22).replace(', Boss.','')+' కోసం వెతుకుతున్నాను.';
+  if(r.startsWith('Tell me a song or search phrase for YouTube')) return 'YouTube kosam song leda search phrase cheppu.';
+  if(r.startsWith('Only http and https')) return 'Http లేదా https link మాత్రమే open చేయగలను.';
+  if(r.startsWith('That link does not look valid')) return 'ఈ link validగా కనిపించడం లేదు.';
+  if(r.startsWith('Bitcoin is ')){ parts=r.slice(11).split(' dollars, '); return 'Bitcoin ధర ఇప్పుడు $'+parts[0]+' (సుమారు ₹'+parts[1].split(' rupees')[0]+').'; }
+  if(r.includes(' ... ')) return 'ఇదిగో ఒక joke: '+r;
+  if(r.startsWith('I could not find that')) return 'Wikipediaలో ఆ విషయం దొరకలేదు.';
+  if(r.startsWith('Tell me what to search for on Google')) return 'Googleలో em search cheyyalo cheppu.';
+  if(r.startsWith('Tell me what to search')) return 'Em search cheyyalo cheppu.';
+  if(r.startsWith('Search error')) return 'Search service ippudu pani cheyyatledu.';
+  if(r.startsWith('Joke service error')) return 'Joke service ippudu pani cheyyatledu.';
+  if(r.startsWith('Quote service error')) return 'Quote service ippudu pani cheyyatledu.';
+  if(r.startsWith('News service error')) return 'News service ippudu pani cheyyatledu.';
+  if(r.startsWith('Translate error')) return 'Translation ippudu dorkatledu; malli try cheyyi.';
+  if(r.startsWith('Translate format:')) return 'Telugu translation kosam “translate <text>” ani cheppu.';
+  if(r.startsWith('Currency service error')) return 'Exchange rate ippudu dorkatledu.';
+  if(r.startsWith('Crypto service error')) return 'Crypto price ippudu dorkatledu.';
+  if(r.startsWith('Enter a dollar amount')) return 'Dollar amount 0 కంటే ఎక్కువ ఇవ్వు.';
+  if(r.startsWith('Meaning format:')) return 'Meaning kosam “meaning of <word>” ani cheppu.';
+  if(r.endsWith(', Boss.')) return r.slice(0,-7)+'.';
+  return r;
+}
+async function askGemini(p){
   add('J.A.R.V.I.S: Thinking...','ai');
   try{
-    let toolReply=await handleTools(p); if(toolReply)toolReply=telugishToolReply(toolReply);
+    let toolReply=await handleTools(p);
+    const containsSecret=typeof toolReply==='string'&&toolReply.startsWith('Your strong password: ');
+    if(toolReply) toolReply=telugishToolReply(toolReply);
     if(toolReply){
-      MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:toolReply}); saveMemory();
-      chat.lastChild.innerText='J.A.R.V.I.S: '+toolReply; speak(toolReply); return;
+      if(!containsSecret){ MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:toolReply}); saveMemory(); }
+      chat.lastChild.innerText='J.A.R.V.I.S: '+toolReply;
+      speak(containsSecret?'Password generated. Check the screen.':toolReply);
+      return;
     }
   }catch(e){console.error('Tool command failed:',e);chat.lastChild.innerText='J.A.R.V.I.S: Command execute cheyyalekapoyanu. Inko sari try cheddam.';return;}
   try{

@@ -274,7 +274,7 @@ function telugishToolReply(r){
   let parts;
   if(r.startsWith('The time is ')) return 'ఇప్పుడు టైమ్ '+r.slice(12).replace(', Boss.','')+'.';
   if(r.startsWith('It is ')) return 'ఇప్పుడు '+r.split(' ')[2]+'°C ఉంది.';
-  if(r.startsWith('Timer set for ')) return 'సరే, '+r.slice(14).replace('.','')+'కి timer పెట్టాను.';
+  if(r.startsWith('Timer set for ')) return 'సరే, '+r.slice(14).replace(/\.$/,'')+'కి timer పెట్టాను.';
   if(r.startsWith('Timer limit')) return '24 గంటల కంటే ఎక్కువ timer set చేయలేను.';
   if(r.startsWith('Timer format:')) return 'Timer set చేయడానికి “timer 5 minutes” లాగా duration చెప్పు.';
   if(r.startsWith('Timer duration must')) return 'Timer duration 0 కంటే ఎక్కువ ఉండాలి.';

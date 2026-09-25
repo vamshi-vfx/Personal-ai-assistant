@@ -4,7 +4,16 @@ if(!API_KEY){ API_KEY = prompt('Enter your Gemini API Key:'); if(API_KEY) localS
 const MODELS = ["gemini-3.6-flash", "gemini-flash-latest"];
 
 // ===== 2. MEMORY =====
-let MEMORY = JSON.parse(localStorage.getItem('jarvis_memory') || '[]');
+let MEMORY = [];
+try {
+  const storedMemory = JSON.parse(localStorage.getItem('jarvis_memory') || '[]');
+  if (Array.isArray(storedMemory)) {
+    MEMORY = storedMemory.filter(m => m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string');
+  }
+} catch (e) {
+  // Recover from malformed local storage instead of breaking app startup.
+  localStorage.removeItem('jarvis_memory');
+}
 function saveMemory(){ localStorage.setItem('jarvis_memory', JSON.stringify(MEMORY)); }
 const chat=document.getElementById('chat');
 const input=document.getElementById('msg');
@@ -119,21 +128,31 @@ async function handleTools(text){
 
 // ===== 4. GEMINI BRAIN =====
 async function callGemini(p){
+  if(!API_KEY) throw new Error('Gemini API key is missing. Reload the page and enter your key.');
   const contents = MEMORY.slice(-12).map(m=>({role:m.role, parts:[{text:m.text}]}));
   contents.push({role:'user', parts:[{text:p}]});
   let lastErr;
   for(const m of MODELS){
     try{
-      const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+API_KEY,
+      const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+encodeURIComponent(API_KEY),
         {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:"You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using Telugu script for Telugu and English for technical terms. Keep replies concise, conversational, empathetic, and easy to say aloud. Avoid robotic or overly formal wording, repetitive greetings, and calling the user Boss. Match the user's language and context."}]},contents:contents})});
       const data=await res.json();
-      if(data.error){ lastErr=new Error(data.error.message);
-        if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated/i.test(data.error.message)) continue;
-        throw lastErr; }
-      return data.candidates[0].content.parts[0].text;
+      if(data.error){
+        const message=data.error.message || 'Gemini request failed.';
+        lastErr=new Error(message);
+        // Retry another configured model when this model is missing or unavailable.
+        if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message)) continue;
+        throw lastErr;
+      }
+      const reply=data?.candidates?.[0]?.content?.parts?.map(part=>part.text).filter(Boolean).join('\n');
+      if(!reply){
+        const reason=data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
+        throw new Error(reason ? 'Gemini could not answer this request ('+reason+').' : 'Gemini returned an empty response.');
+      }
+      return reply;
     }catch(e){ lastErr=e; }
   }
-  throw lastErr;
+  throw lastErr || new Error('Gemini request failed.');
 }
 
 function telugishToolReply(r){let p;if(r.startsWith('The time is '))return 'ఇప్పుడు టైమ్ '+r.slice(12).replace(', Boss.','')+'.';if(r.startsWith('It is '))return 'ఇప్పుడు '+r.split(' ')[2]+'°C ఉంది.';if(r.startsWith('Timer set for '))return 'సరే, '+r.slice(14).replace('.','')+'కి timer పెట్టాను.';if(r.startsWith('Timer limit'))return '24 గంటల కంటే ఎక్కువ timer set చేయలేను.';if(r.startsWith('You rolled '))return 'డైస్‌లో '+r.split(' ')[2]+' వచ్చింది!';if(r==='Heads, Boss.')return 'కాయిన్‌లో Heads వచ్చింది!';if(r==='Tails, Boss.')return 'కాయిన్‌లో Tails వచ్చింది!';if(r.startsWith('I need location permission'))return 'Weather కోసం location permission ఇవ్వాలి.';if(r.startsWith('Weather service error'))return 'Weather సమాచారం ఇప్పుడే దొరకలేదు.';if(r.includes(' — by ')){p=r.split(' — by ');return 'ఇదిగో ఒక thought: “'+p[0]+'” — '+p[1];}if(r.startsWith('Wikipedia summary: '))return 'Wikipediaలో సారాంశం: '+r.slice(19);if(r.startsWith('Top tech news: '))return 'ఇవాళ్టి top tech headlines: '+r.slice(15);if(r.startsWith('In Telugu: '))return 'తెలుగులో: '+r.slice(11);if(r.includes(' US dollars is about ')){p=r.split(' US dollars is about ');return '$'+p[0]+' అంటే సుమారుగా ₹'+p[1].split(' Indian rupees')[0]+' అవుతుంది.';}if(r.includes(' means: ')){p=r.split(' means: ');return p[0]+' అంటే: '+p.slice(1).join(' means: ');}if(r.startsWith('Could not retrieve'))return 'ఈ పదానికి meaning ఇప్పుడే దొరకలేదు. కొద్దిసేపటికి మళ్లీ try చేద్దాం.';if(r.startsWith('Your strong password: '))return 'ఇదిగో strong password: '+r.slice('Your strong password: '.length);if(r.startsWith('Opening YouTube'))return 'YouTube ఓపెన్ చేస్తున్నాను.';if(r.startsWith('Opening Google'))return 'Google ఓపెన్ చేస్తున్నాను.';if(r.startsWith('Searching YouTube for '))return 'YouTubeలో '+r.slice(22).replace(', Boss.','')+' కోసం వెతుకుతున్నాను.';if(r.startsWith('Bitcoin is ')){p=r.slice(11).split(' dollars, ');return 'Bitcoin ధర ఇప్పుడు $'+p[0]+' (సుమారు ₹'+p[1].split(' rupees')[0]+').';}if(r.includes(' ... '))return 'ఇదిగో ఒక joke: '+r;if(r.endsWith(', Boss.'))return r.slice(0,-7)+'.';return r;}async function askGemini(p){
@@ -167,17 +186,25 @@ imgInput.onchange=()=>{
 };
 async function askVision(base64,mime,q){
   add('J.A.R.V.I.S: Analyzing image...','ai');
+  if(!API_KEY){chat.lastChild.innerText='J.A.R.V.I.S: ERROR - Gemini API key is missing. Reload the page and enter your key.';return;}
   let lastErr;
   for(const m of MODELS){
     try{
-      const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+API_KEY,
+      const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+encodeURIComponent(API_KEY),
         {method:"POST",headers:{"Content-Type":"application/json"},
          body:JSON.stringify({systemInstruction:{parts:[{text:"You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using Telugu script for Telugu and English for technical terms. Keep replies concise, conversational, empathetic, and easy to say aloud. Avoid robotic or overly formal wording, repetitive greetings, and calling the user Boss."}]},contents:[{parts:[{text:q},{inline_data:{mime_type:mime,data:base64}}]}]})});
       const data=await res.json();
-      if(data.error){ lastErr=new Error(data.error.message);
-        if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated/i.test(data.error.message)) continue;
-        throw lastErr; }
-      const reply=data.candidates[0].content.parts[0].text;
+      if(data.error){
+        const message=data.error.message || 'Gemini image request failed.';
+        lastErr=new Error(message);
+        if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message)) continue;
+        throw lastErr;
+      }
+      const reply=data?.candidates?.[0]?.content?.parts?.map(part=>part.text).filter(Boolean).join('\n');
+      if(!reply){
+        const reason=data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
+        throw new Error(reason ? 'Gemini could not analyze this image ('+reason+').' : 'Gemini returned an empty response.');
+      }
       chat.lastChild.innerText='J.A.R.V.I.S: '+reply; speak(reply); return;
     }catch(e){ lastErr=e; }
   }

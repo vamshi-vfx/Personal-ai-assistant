@@ -142,10 +142,9 @@ async function handleTools(text){
 
   if(t.includes('quote')||t.includes('motivate')){
     try{
-      const data=await fetchToolJson('https://zenquotes.io/api/random');
-      const quote=data?.[0];
-      if(typeof quote?.q!=='string'||typeof quote?.a!=='string') throw new Error('Invalid quote response.');
-      return quote.q+' — by '+quote.a;
+      const data=await fetchToolJson('https://dummyjson.com/quotes/random');
+      if(typeof data?.quote!=='string'||typeof data?.author!=='string') throw new Error('Invalid quote response.');
+      return data.quote+' — by '+data.author;
     }catch(e){ return 'A small step today is still progress. — by J.A.R.V.I.S'; }
   }
 
@@ -204,7 +203,7 @@ async function handleTools(text){
     }catch(e){}
     try{
       const data=await fetchToolJson('https://api.datamuse.com/words?sp='+encodeURIComponent(word)+'&md=d&max=1',{},7000);
-      const definition=data?.[0]?.defs?.[0]?.replace(/^[a-z]\s+/i,'').trim();
+      const definition=data?.[0]?.defs?.[0]?.replace(/^[a-z]{1,5}\s+/i,'').trim();
       if(definition) return word+' means: '+definition;
     }catch(e){}
     return 'Could not retrieve the word meaning right now. Try again later.';

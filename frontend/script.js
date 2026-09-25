@@ -278,7 +278,7 @@ function telugishToolReply(r){
   if(r.startsWith('Timer limit')) return '24 గంటల కంటే ఎక్కువ timer set చేయలేను.';
   if(r.startsWith('Timer format:')) return 'Timer set చేయడానికి “timer 5 minutes” లాగా duration చెప్పు.';
   if(r.startsWith('Timer duration must')) return 'Timer duration 0 కంటే ఎక్కువ ఉండాలి.';
-  if(r.startsWith('You rolled ')) return 'డైస్‌లో '+r.split(' ')[2]+' వచ్చింది!';
+  if(r.startsWith('You rolled ')) return 'డైస్‌లో '+r.split(' ')[2].replace(',','')+' వచ్చింది!';
   if(r==='Heads, Boss.') return 'కాయిన్‌లో Heads వచ్చింది!';
   if(r==='Tails, Boss.') return 'కాయిన్‌లో Tails వచ్చింది!';
   if(r.startsWith('I need location permission')) return 'Weather కోసం location permission ఇవ్వాలి.';

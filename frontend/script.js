@@ -89,7 +89,7 @@ async function handleTools(text){
     }catch(e){ return 'Search error, Boss.'; }
   }
   if(/\b(?:what time(?: is it)?|what is the time|current time|tell me the time|time now)\b/.test(t)||/^\s*time(?:\s+please)?[.!?]*\s*$/.test(t)||t.includes('టైమ్')||t.includes('సమయం')||t.includes('samayam'))
-    return 'The time is '+new Date().toLocaleTimeString()+', Boss.';
+    return 'The time is '+new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit'})+' IST, Boss.';
 
   if(t.includes('weather')||t.includes('వాతావరణం')){
     if(!navigator.geolocation) return 'I need location permission for weather, Boss.';

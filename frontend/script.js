@@ -19,6 +19,7 @@ try {
 }
 
 const chat=document.getElementById('chat');
+const conversationStage=document.getElementById('conversation-stage');
 const input=document.getElementById('msg');
 const micBtn=document.getElementById('mic-btn');
 const clearBtn=document.getElementById('clear-btn');
@@ -36,6 +37,7 @@ const settingsScrim=document.getElementById('settings-scrim');
 const themeSelect=document.getElementById('theme-select');
 const clearMemorySetting=document.getElementById('clear-memory-setting');
 const thinkingStatus=document.getElementById('thinking-status');
+const thinkingLabel=document.getElementById('thinking-label');
 const HISTORY_KEY='jarvis_conversation_history_v1';
 const ACTIVE_CONVERSATION_KEY='jarvis_active_conversation_v1';
 let CONVERSATIONS=[];
@@ -90,8 +92,22 @@ function renderHistoryList(){
     button.append(icon,label);button.addEventListener('click',()=>switchConversation(item.id));historyList.appendChild(button);
   });
 }
-function setThinking(active){
-  const on=Boolean(active);document.body.classList.toggle('is-thinking',on);if(thinkingStatus)thinkingStatus.hidden=!on;
+function setThinking(active,message){
+  const on=Boolean(active);
+  if(on&&thinkingLabel)thinkingLabel.textContent=message||'J.A.R.V.I.S is thinking';
+  document.body.classList.toggle('is-thinking',on);
+  if(thinkingStatus)thinkingStatus.hidden=!on;
+}
+function scrollConversationToBottom(){
+  if(!conversationStage)return;
+  const scroll=()=>{conversationStage.scrollTop=conversationStage.scrollHeight;};
+  if(typeof window.requestAnimationFrame==='function')window.requestAnimationFrame(scroll);else setTimeout(scroll,16);
+}
+function setReply(node,text){if(!node)return;node.innerText=text;scrollConversationToBottom();}
+function activityLabel(text){return String(text).replace(/^J\.A\.R\.V\.I\.S:\s*/i,'').replace(/\.{3}$/,'').trim()||'J.A.R.V.I.S is thinking';}
+function isTransientActivity(text){
+  const clean=String(text).replace(/^J\.A\.R\.V\.I\.S:\s*/i,'');
+  return /^(?:Thinking\.\.\.|Agent mode active\.|Goal analyze\b|\[\d+\/\d+\].*tool run chesthunna|Results combine chesthunna|Gemini busy undi;)/i.test(clean);
 }
 function closeSidebarOnMobile(){if(window.matchMedia('(max-width: 780px)').matches){document.body.classList.remove('sidebar-open');if(sidebarBackdrop)sidebarBackdrop.hidden=true;}}
 function toggleSidebar(){
@@ -105,7 +121,7 @@ function switchConversation(id){
   ACTIVE_CONVERSATION_ID=id;MEMORY=next.messages.slice(-120);
   localStorage.setItem(ACTIVE_CONVERSATION_KEY,id);localStorage.setItem('jarvis_memory',JSON.stringify(MEMORY));
   chat.replaceChildren();MEMORY.forEach(m=>add((m.role==='user'?'YOU: ':'J.A.R.V.I.S: ')+m.text,m.role==='user'?'user':'ai'));
-  document.body.classList.toggle('has-conversation',MEMORY.length>0);renderHistoryList();closeSidebarOnMobile();
+  document.body.classList.toggle('has-conversation',MEMORY.length>0);renderHistoryList();scrollConversationToBottom();closeSidebarOnMobile();
 }
 function startNewConversation(){
   if(!MEMORY.length){input.focus();closeSidebarOnMobile();return;}
@@ -113,7 +129,7 @@ function startNewConversation(){
   const fresh={id:makeConversationId(),title:'New chat',updatedAt:Date.now(),messages:[]};
   CONVERSATIONS.unshift(fresh);CONVERSATIONS=CONVERSATIONS.slice(0,30);ACTIVE_CONVERSATION_ID=fresh.id;MEMORY=[];
   localStorage.setItem('jarvis_memory','[]');localStorage.setItem(ACTIVE_CONVERSATION_KEY,ACTIVE_CONVERSATION_ID);localStorage.setItem(HISTORY_KEY,JSON.stringify(CONVERSATIONS));
-  chat.replaceChildren();document.body.classList.remove('has-conversation');renderHistoryList();input.value='';input.style.height='auto';input.focus();closeSidebarOnMobile();
+  chat.replaceChildren();document.body.classList.remove('has-conversation');conversationStage.scrollTop=0;renderHistoryList();input.value='';input.style.height='auto';input.focus();closeSidebarOnMobile();
 }
 function openSettings(){settingsPanel.hidden=false;settingsScrim.hidden=false;closeSidebarOnMobile();settingsClose.focus();}
 function closeSettings(){settingsPanel.hidden=true;settingsScrim.hidden=true;if(window.matchMedia('(max-width: 780px)').matches&&!document.body.classList.contains('sidebar-open'))menuButton.focus();else settingsOpen.focus();}
@@ -522,32 +538,32 @@ function telugishToolReply(r){
   return r;
 }
 async function askGemini(p){
-  setThinking(true);
-  add('J.A.R.V.I.S: Thinking...','ai');
+  setThinking(true,'J.A.R.V.I.S is thinking');
+  const replyNode=add('J.A.R.V.I.S: Thinking...','ai',true);
   try{
     if(isAgentModeRequest(p)){
       const reply=await runAgent(p);
-      MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:reply}); saveMemory();
-      chat.lastChild.innerText='J.A.R.V.I.S: '+reply; speak(reply);
+      MEMORY.push({role:'user',text:p});MEMORY.push({role:'model',text:reply});saveMemory();
+      setReply(replyNode,'J.A.R.V.I.S: '+reply);speak(reply);
       return;
     }
     let toolReply;
     try{toolReply=await handleTools(p);}
-    catch(e){console.error('Tool command failed:',e);chat.lastChild.innerText='J.A.R.V.I.S: Command execute cheyyalekapoyanu. Inko sari try cheddam.';return;}
+    catch(e){console.error('Tool command failed:',e);setReply(replyNode,'J.A.R.V.I.S: Command execute cheyyalekapoyanu. Inko sari try cheddam.');return;}
     const containsSecret=typeof toolReply==='string'&&toolReply.startsWith('Your strong password: ');
     if(toolReply)toolReply=telugishToolReply(toolReply);
     if(toolReply){
       if(!containsSecret){MEMORY.push({role:'user',text:p});MEMORY.push({role:'model',text:toolReply});saveMemory();}
-      chat.lastChild.innerText='J.A.R.V.I.S: '+toolReply;
+      setReply(replyNode,'J.A.R.V.I.S: '+toolReply);
       speak(containsSecret?'Password generated. Check the screen.':toolReply);
       return;
     }
     const reply=await callGemini(p);
     MEMORY.push({role:'user',text:p});MEMORY.push({role:'model',text:reply});saveMemory();
-    chat.lastChild.innerText='J.A.R.V.I.S: '+reply;speak(reply);
+    setReply(replyNode,'J.A.R.V.I.S: '+reply);speak(reply);
   }catch(e){
     console.error('J.A.R.V.I.S request failed:',e);
-    chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+(e?.message||'Request failed.');
+    setReply(replyNode,'J.A.R.V.I.S: ERROR - '+(e?.message||'Request failed.'));
   }finally{setThinking(false);}
 }
 
@@ -565,9 +581,10 @@ imgInput.onchange=()=>{
   reader.readAsDataURL(file);
 };
 async function askVision(base64,mime,q){
-  setThinking(true);add('J.A.R.V.I.S: Analyzing image...','ai');
+  setThinking(true,'Analyzing image...');
+  const replyNode=add('J.A.R.V.I.S: Analyzing image...','ai',true);
   try{
-    if(!API_KEY){chat.lastChild.innerText='J.A.R.V.I.S: ERROR - Gemini API key is missing. Reload the page and enter your key.';return;}
+    if(!API_KEY){setReply(replyNode,'J.A.R.V.I.S: ERROR - Gemini API key is missing. Reload the page and enter your key.');return;}
     let lastErr;
     for(const m of MODELS){
       try{
@@ -578,10 +595,10 @@ async function askVision(base64,mime,q){
         if(data.error){const message=data.error.message||'Gemini image request failed.';lastErr=new Error(message);if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message))continue;throw lastErr;}
         const reply=data?.candidates?.[0]?.content?.parts?.map(part=>part.text).filter(Boolean).join('\n');
         if(!reply){const reason=data?.promptFeedback?.blockReason||data?.candidates?.[0]?.finishReason;throw new Error(reason?'Gemini could not analyze this image ('+reason+').' :'Gemini returned an empty response.');}
-        chat.lastChild.innerText='J.A.R.V.I.S: '+reply;speak(reply);return;
+        setReply(replyNode,'J.A.R.V.I.S: '+reply);speak(reply);return;
       }catch(e){lastErr=e;}
     }
-    chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+(lastErr?.message||'Image analysis failed.');
+    setReply(replyNode,'J.A.R.V.I.S: ERROR - '+(lastErr?.message||'Image analysis failed.'));
   }finally{setThinking(false);}
 }
 
@@ -599,8 +616,11 @@ function speak(t){ if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtte
 // ===== 7. SEND + CLEAR =====
 document.getElementById('send').onclick=()=>{ const t=input.value.trim(); if(!t)return;
   add('YOU: '+t,'user'); input.value=''; input.style.height='auto'; askGemini(t); };
-clearBtn.onclick=()=>{MEMORY=[];saveMemory();chat.replaceChildren();document.body.classList.remove('has-conversation');setThinking(false);};
-function add(t,w){const d=document.createElement('div');d.className='msg '+w;d.innerText=t;chat.appendChild(d);document.body.classList.toggle('has-conversation',chat.children.length>0);chat.scrollTop=chat.scrollHeight;}
+clearBtn.onclick=()=>{MEMORY=[];saveMemory();chat.replaceChildren();document.body.classList.remove('has-conversation');conversationStage.scrollTop=0;setThinking(false);};
+function add(t,w,force=false){
+  if(w==='ai'&&!force&&isTransientActivity(t)){setThinking(true,activityLabel(t));return null;}
+  const d=document.createElement('div');d.className='msg '+w;d.innerText=t;chat.appendChild(d);document.body.classList.toggle('has-conversation',chat.children.length>0);scrollConversationToBottom();return d;
+}
 
 document.getElementById('new-chat').addEventListener('click',startNewConversation);
 menuButton.addEventListener('click',toggleSidebar);

@@ -42,7 +42,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .profile-avatar{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(166,151,255,.32);border-radius:10px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700}
 .profile-name{font-size:12px;font-weight:600;color:var(--text)}
 .profile-label{margin-left:auto;color:var(--subtle);font-size:8px;letter-spacing:.1em}
-.main-area{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh;overflow:hidden;background:radial-gradient(ellipse at 50% -16%,rgba(128,106,218,.1),transparent 42%),var(--bg)}
+/* The fixed sidebar leaves auto-placement on column 1; place the workspace in the visible second track. */
+.main-area{grid-column:2;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh;overflow:hidden;background:radial-gradient(ellipse at 50% -16%,rgba(128,106,218,.1),transparent 42%),var(--bg)}
 .topbar{position:fixed;top:0;left:268px;right:0;z-index:40;display:flex;align-items:center;gap:12px;height:66px;min-height:66px;padding:0 27px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(20px)}
 .menu-button{margin-left:-9px}
 .topbar-title{display:flex;align-items:center;gap:11px;min-width:0;color:var(--text);font-size:13px;font-weight:650;letter-spacing:.02em}
@@ -160,7 +161,7 @@ body.sidebar-collapsed .sidebar-link{justify-content:center;padding:10px 0}
 body.sidebar-collapsed .profile-row{justify-content:center;padding-right:0;padding-left:0}
 @media(max-width:780px){
   .app-shell{grid-template-columns:minmax(0,1fr)}
-  .main-area{min-height:0;height:100dvh}
+  .main-area{grid-column:1;min-height:0;height:100dvh}
   .conversation-stage{top:58px;bottom:106px}
   .sidebar{position:fixed;inset:0 auto 0 0;width:min(290px,84vw);height:100dvh;transform:translateX(-102%);box-shadow:var(--shadow)}
   body.sidebar-open .sidebar{transform:translateX(0)}

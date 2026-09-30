@@ -52,7 +52,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .ready-badge{display:flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.12em}
 .ready-dot{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 9px color-mix(in srgb,var(--success) 60%,transparent)}
 .clear-button{width:34px;height:34px;flex-basis:34px}
-.conversation-stage{position:absolute;top:66px;right:0;bottom:122px;left:0;display:flex;flex-direction:column;min-width:0;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+.conversation-stage{position:absolute;top:66px;right:0;bottom:122px;left:0;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .welcome{width:min(100% - 36px,700px);margin:auto;display:flex;flex-direction:column;align-items:center;padding:24px 0 36px;text-align:center;animation:welcomeIn .65s cubic-bezier(.2,.7,.2,1) both}
 .hero-orb{position:relative;width:158px;height:158px;display:grid;place-items:center;margin:0 auto 24px;isolation:isolate;perspective:760px;filter:drop-shadow(0 0 28px rgba(166,151,255,.12))}
 .orb-aura{position:absolute;inset:-22px;border-radius:50%;background:radial-gradient(circle,rgba(154,130,255,.2) 0,rgba(82,167,221,.09) 38%,transparent 72%);filter:blur(7px);animation:auraPulse 3.6s ease-in-out infinite}
@@ -83,7 +83,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .prompt-card small{overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
 .prompt-arrow{margin-left:auto;color:var(--subtle);font-size:13px;transition:transform .18s ease,color .18s ease}
 .prompt-card:hover .prompt-arrow{transform:translate(2px,-2px);color:var(--accent)}
-.chat{display:none;position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;padding:20px max(16px,calc((100% - 968px)/2)) 24px;flex-direction:column;gap:5px;overflow-x:hidden;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;scrollbar-gutter:stable}
+.chat{display:none;position:relative;flex:1 1 auto;flex-direction:column;gap:5px;width:min(100%,900px);height:auto;min-height:0;margin:0 auto;padding:20px 34px 24px;overflow-x:hidden;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;scrollbar-gutter:stable}
 body.has-conversation .welcome{display:none}
 body.has-conversation .conversation-stage{overflow:hidden}
 body.has-conversation .chat{display:flex;flex-direction:column}

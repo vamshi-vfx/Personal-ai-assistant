@@ -99,7 +99,8 @@ function setThinking(active,message){
   if(thinkingStatus)thinkingStatus.hidden=!on;
 }
 function scrollConversationToBottom(){
-  const scroll=()=>window.scrollTo(0,Math.max(document.documentElement.scrollHeight,document.body.scrollHeight));
+  if(!chat)return;
+  const scroll=()=>{chat.scrollTop=chat.scrollHeight;};
   if(typeof window.requestAnimationFrame==='function')window.requestAnimationFrame(scroll);else setTimeout(scroll,16);
 }
 function setReply(node,text){if(!node)return;node.innerText=text;scrollConversationToBottom();}
@@ -128,7 +129,7 @@ function startNewConversation(){
   const fresh={id:makeConversationId(),title:'New chat',updatedAt:Date.now(),messages:[]};
   CONVERSATIONS.unshift(fresh);CONVERSATIONS=CONVERSATIONS.slice(0,30);ACTIVE_CONVERSATION_ID=fresh.id;MEMORY=[];
   localStorage.setItem('jarvis_memory','[]');localStorage.setItem(ACTIVE_CONVERSATION_KEY,ACTIVE_CONVERSATION_ID);localStorage.setItem(HISTORY_KEY,JSON.stringify(CONVERSATIONS));
-  chat.replaceChildren();document.body.classList.remove('has-conversation');window.scrollTo(0,0);renderHistoryList();input.value='';input.style.height='auto';input.focus();closeSidebarOnMobile();
+  chat.replaceChildren();document.body.classList.remove('has-conversation');chat.scrollTop=0;conversationStage.scrollTop=0;renderHistoryList();input.value='';input.style.height='auto';input.focus();closeSidebarOnMobile();
 }
 function openSettings(){settingsPanel.hidden=false;settingsScrim.hidden=false;closeSidebarOnMobile();settingsClose.focus();}
 function closeSettings(){settingsPanel.hidden=true;settingsScrim.hidden=true;if(window.matchMedia('(max-width: 780px)').matches&&!document.body.classList.contains('sidebar-open'))menuButton.focus();else settingsOpen.focus();}
@@ -615,7 +616,7 @@ function speak(t){ if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtte
 // ===== 7. SEND + CLEAR =====
 document.getElementById('send').onclick=()=>{ const t=input.value.trim(); if(!t)return;
   add('YOU: '+t,'user'); input.value=''; input.style.height='auto'; askGemini(t); };
-clearBtn.onclick=()=>{MEMORY=[];saveMemory();chat.replaceChildren();document.body.classList.remove('has-conversation');window.scrollTo(0,0);setThinking(false);};
+clearBtn.onclick=()=>{MEMORY=[];saveMemory();chat.replaceChildren();document.body.classList.remove('has-conversation');chat.scrollTop=0;conversationStage.scrollTop=0;setThinking(false);};
 function add(t,w,force=false){
   if(w==='ai'&&!force&&isTransientActivity(t)){setThinking(true,activityLabel(t));return null;}
   const d=document.createElement('div');d.className='msg '+w;d.innerText=t;chat.appendChild(d);document.body.classList.toggle('has-conversation',chat.children.length>0);scrollConversationToBottom();return d;

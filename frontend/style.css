@@ -10,7 +10,7 @@ button:focus-visible,a:focus-visible,textarea:focus-visible,select:focus-visible
 button{cursor:pointer}
 button:disabled{opacity:.5;cursor:not-allowed}
 [hidden]{display:none!important}
-.app-shell{height:100dvh;min-height:520px;width:100%;display:grid;grid-template-columns:268px minmax(0,1fr);background:var(--bg);transition:grid-template-columns .24s ease}
+.app-shell{position:fixed;inset:0;height:100dvh;min-height:0;width:100vw;overflow:hidden;display:grid;grid-template-columns:268px minmax(0,1fr);background:var(--bg);transition:grid-template-columns .24s ease}
 .sidebar{min-width:0;height:100%;display:flex;flex-direction:column;padding:20px 13px 14px;background:var(--sidebar);border-right:1px solid var(--border);z-index:30;transition:width .24s ease,padding .24s ease,transform .24s ease}
 .sidebar-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 5px 22px}
 .brand{display:flex;align-items:center;gap:11px;min-width:0;color:var(--text);text-decoration:none}
@@ -42,7 +42,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .profile-avatar{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(166,151,255,.32);border-radius:10px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700}
 .profile-name{font-size:12px;font-weight:600;color:var(--text)}
 .profile-label{margin-left:auto;color:var(--subtle);font-size:8px;letter-spacing:.1em}
-.main-area{position:relative;display:flex;flex-direction:column;min-width:0;height:100%;background:radial-gradient(ellipse at 50% -16%,rgba(128,106,218,.1),transparent 42%),var(--bg)}
+.main-area{position:relative;display:grid;grid-template-rows:66px minmax(0,1fr) auto;min-width:0;min-height:0;height:100%;overflow:hidden;background:radial-gradient(ellipse at 50% -16%,rgba(128,106,218,.1),transparent 42%),var(--bg)}
 .topbar{z-index:5;display:flex;align-items:center;gap:12px;flex:0 0 66px;min-height:66px;padding:0 27px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(20px)}
 .menu-button{margin-left:-9px}
 .topbar-title{display:flex;align-items:center;gap:11px;min-width:0;color:var(--text);font-size:13px;font-weight:650;letter-spacing:.02em}
@@ -83,11 +83,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .prompt-card small{overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
 .prompt-arrow{margin-left:auto;color:var(--subtle);font-size:13px;transition:transform .18s ease,color .18s ease}
 .prompt-card:hover .prompt-arrow{transform:translate(2px,-2px);color:var(--accent)}
-.chat{display:none;flex:0 0 auto;flex-direction:column;gap:8px;width:min(100%,900px);min-height:100%;margin:0 auto;padding:24px 34px 28px;overflow:visible}
+.chat{display:none;flex:0 0 auto;flex-direction:column;gap:5px;width:min(100%,900px);min-height:100%;margin:0 auto;padding:20px 34px 24px;overflow:visible}
 body.has-conversation .welcome{display:none}
 body.has-conversation .chat{display:flex;flex-direction:column}
-.msg{width:fit-content;max-width:min(82%,690px);margin:0;padding:7px 12px;border:1px solid transparent;border-radius:15px;color:var(--text);font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;animation:messageIn .22s ease both}
-.msg.ai{align-self:flex-start;max-width:min(100%,760px);padding:2px 1px;color:var(--text);line-height:1.5}
+.msg{width:fit-content;max-width:min(82%,690px);margin:0;padding:6px 10px;border:1px solid transparent;border-radius:15px;color:var(--text);font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;animation:messageIn .22s ease both}
+.msg.ai{align-self:flex-start;max-width:min(100%,760px);padding:1px;color:var(--text);line-height:1.45}
 .msg.user{align-self:flex-end;border-color:var(--border);border-radius:18px 18px 5px 18px;background:var(--user-bubble);color:var(--text)}
 body.is-thinking .hero-orb .orb-core{animation:thinkingPulse 1.1s ease-in-out infinite alternate}
 body.is-thinking .hero-orb .orb-ring-outer{animation-duration:4s}
@@ -157,6 +157,7 @@ body.sidebar-collapsed .sidebar-link{justify-content:center;padding:10px 0}
 body.sidebar-collapsed .profile-row{justify-content:center;padding-right:0;padding-left:0}
 @media(max-width:780px){
   .app-shell{grid-template-columns:minmax(0,1fr)}
+  .main-area{grid-template-rows:58px minmax(0,1fr) auto}
   .sidebar{position:fixed;inset:0 auto 0 0;width:min(290px,84vw);height:100dvh;transform:translateX(-102%);box-shadow:var(--shadow)}
   body.sidebar-open .sidebar{transform:translateX(0)}
   .sidebar-backdrop:not([hidden]){position:fixed;inset:0;z-index:29;display:block;width:100%;height:100%;border:0;background:rgba(3,5,9,.52);backdrop-filter:blur(2px)}

@@ -17,13 +17,109 @@ try {
   // Recover from malformed local storage instead of breaking app startup.
   localStorage.removeItem('jarvis_memory');
 }
-function saveMemory(){ localStorage.setItem('jarvis_memory', JSON.stringify(MEMORY)); }
+
 const chat=document.getElementById('chat');
 const input=document.getElementById('msg');
 const micBtn=document.getElementById('mic-btn');
 const clearBtn=document.getElementById('clear-btn');
 const camBtn=document.getElementById('cam-btn');
 const imgInput=document.getElementById('img-input');
+const historyList=document.getElementById('history-list');
+const historyCount=document.getElementById('history-count');
+const menuButton=document.getElementById('menu-btn');
+const sidebarToggle=document.getElementById('sidebar-toggle');
+const sidebarBackdrop=document.getElementById('sidebar-backdrop');
+const settingsOpen=document.getElementById('settings-open');
+const settingsClose=document.getElementById('settings-close');
+const settingsPanel=document.getElementById('settings-panel');
+const settingsScrim=document.getElementById('settings-scrim');
+const themeSelect=document.getElementById('theme-select');
+const clearMemorySetting=document.getElementById('clear-memory-setting');
+const thinkingStatus=document.getElementById('thinking-status');
+const HISTORY_KEY='jarvis_conversation_history_v1';
+const ACTIVE_CONVERSATION_KEY='jarvis_active_conversation_v1';
+let CONVERSATIONS=[];
+try{
+  const stored=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');
+  if(Array.isArray(stored)) CONVERSATIONS=stored.filter(c=>c&&typeof c.id==='string'&&Array.isArray(c.messages)).map(c=>({...c,messages:c.messages.filter(m=>m&&(m.role==='user'||m.role==='model')&&typeof m.text==='string').slice(-120)}));
+}catch(e){localStorage.removeItem(HISTORY_KEY);}
+function makeConversationId(){return 'chat_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);}
+function conversationTitle(messages){
+  const first=(messages||[]).find(m=>m&&m.role==='user'&&typeof m.text==='string');
+  return first?first.text.replace(/\s+/g,' ').trim().slice(0,42)||'New chat':'New chat';
+}
+let ACTIVE_CONVERSATION_ID=localStorage.getItem(ACTIVE_CONVERSATION_KEY)||'';
+let initialConversation=CONVERSATIONS.find(c=>c.id===ACTIVE_CONVERSATION_ID);
+if(!initialConversation){
+  initialConversation={id:makeConversationId(),title:conversationTitle(MEMORY),updatedAt:Date.now(),messages:MEMORY.slice(-120)};
+  CONVERSATIONS.unshift(initialConversation);
+  ACTIVE_CONVERSATION_ID=initialConversation.id;
+}else{
+  MEMORY=initialConversation.messages.length?initialConversation.messages.slice(-120):MEMORY.slice(-120);
+  initialConversation.messages=MEMORY.slice(-120);
+  initialConversation.title=conversationTitle(MEMORY)||initialConversation.title||'New chat';
+}
+localStorage.setItem('jarvis_memory',JSON.stringify(MEMORY));
+localStorage.setItem(ACTIVE_CONVERSATION_KEY,ACTIVE_CONVERSATION_ID);
+function currentConversation(){return CONVERSATIONS.find(c=>c.id===ACTIVE_CONVERSATION_ID);}
+function saveMemory(){
+  localStorage.setItem('jarvis_memory',JSON.stringify(MEMORY));
+  const current=currentConversation();
+  if(current){
+    current.messages=MEMORY.slice(-120);
+    current.updatedAt=Date.now();
+    current.title=conversationTitle(current.messages)||current.title||'New chat';
+    CONVERSATIONS.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+    CONVERSATIONS=CONVERSATIONS.slice(0,30);
+    localStorage.setItem(HISTORY_KEY,JSON.stringify(CONVERSATIONS));
+    localStorage.setItem(ACTIVE_CONVERSATION_KEY,ACTIVE_CONVERSATION_ID);
+    renderHistoryList();
+  }
+}
+function renderHistoryList(){
+  if(!historyList)return;
+  const visible=CONVERSATIONS.filter(c=>c.messages&&c.messages.length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  if(historyCount)historyCount.textContent=visible.length?String(visible.length):'';
+  historyList.replaceChildren();
+  if(!visible.length){const empty=document.createElement('p');empty.className='history-empty';empty.textContent='Your conversations will appear here';historyList.appendChild(empty);return;}
+  visible.forEach(item=>{
+    const button=document.createElement('button');button.type='button';button.className='history-item';button.dataset.conversationId=item.id;button.setAttribute('aria-current',String(item.id===ACTIVE_CONVERSATION_ID));
+    const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5zM5 5.5v15M9 7h6M9 10h7');icon.appendChild(path);
+    const label=document.createElement('span');label.className='history-item-label';label.textContent=item.title||conversationTitle(item.messages);
+    button.append(icon,label);button.addEventListener('click',()=>switchConversation(item.id));historyList.appendChild(button);
+  });
+}
+function setThinking(active){
+  const on=Boolean(active);document.body.classList.toggle('is-thinking',on);if(thinkingStatus)thinkingStatus.hidden=!on;
+}
+function closeSidebarOnMobile(){if(window.matchMedia('(max-width: 780px)').matches){document.body.classList.remove('sidebar-open');if(sidebarBackdrop)sidebarBackdrop.hidden=true;}}
+function toggleSidebar(){
+  if(window.matchMedia('(max-width: 780px)').matches){const open=!document.body.classList.contains('sidebar-open');document.body.classList.toggle('sidebar-open',open);if(sidebarBackdrop)sidebarBackdrop.hidden=!open;}
+  else document.body.classList.toggle('sidebar-collapsed');
+}
+function switchConversation(id){
+  if(id===ACTIVE_CONVERSATION_ID){closeSidebarOnMobile();return;}
+  const next=CONVERSATIONS.find(c=>c.id===id);if(!next)return;
+  const current=currentConversation();if(current){current.messages=MEMORY.slice(-120);current.updatedAt=Date.now();}
+  ACTIVE_CONVERSATION_ID=id;MEMORY=next.messages.slice(-120);
+  localStorage.setItem(ACTIVE_CONVERSATION_KEY,id);localStorage.setItem('jarvis_memory',JSON.stringify(MEMORY));
+  chat.replaceChildren();MEMORY.forEach(m=>add((m.role==='user'?'YOU: ':'J.A.R.V.I.S: ')+m.text,m.role==='user'?'user':'ai'));
+  document.body.classList.toggle('has-conversation',MEMORY.length>0);renderHistoryList();closeSidebarOnMobile();
+}
+function startNewConversation(){
+  if(!MEMORY.length){input.focus();closeSidebarOnMobile();return;}
+  const current=currentConversation();if(current){current.messages=MEMORY.slice(-120);current.updatedAt=Date.now();}
+  const fresh={id:makeConversationId(),title:'New chat',updatedAt:Date.now(),messages:[]};
+  CONVERSATIONS.unshift(fresh);CONVERSATIONS=CONVERSATIONS.slice(0,30);ACTIVE_CONVERSATION_ID=fresh.id;MEMORY=[];
+  localStorage.setItem('jarvis_memory','[]');localStorage.setItem(ACTIVE_CONVERSATION_KEY,ACTIVE_CONVERSATION_ID);localStorage.setItem(HISTORY_KEY,JSON.stringify(CONVERSATIONS));
+  chat.replaceChildren();document.body.classList.remove('has-conversation');renderHistoryList();input.value='';input.style.height='auto';input.focus();closeSidebarOnMobile();
+}
+function openSettings(){settingsPanel.hidden=false;settingsScrim.hidden=false;closeSidebarOnMobile();settingsClose.focus();}
+function closeSettings(){settingsPanel.hidden=true;settingsScrim.hidden=true;if(window.matchMedia('(max-width: 780px)').matches&&!document.body.classList.contains('sidebar-open'))menuButton.focus();else settingsOpen.focus();}
+function applyTheme(theme){const chosen=theme==='light'?'light':'dark';document.documentElement.dataset.theme=chosen;localStorage.setItem('jarvis_theme',chosen);if(themeSelect)themeSelect.value=chosen;}
+renderHistoryList();
+applyTheme(localStorage.getItem('jarvis_theme')||'dark');
 MEMORY.forEach(m=> add((m.role==='user'?'YOU: ':'J.A.R.V.I.S: ')+m.text, m.role==='user'?'user':'ai'));
 
 // ===== 3. TOOLS (THE HANDS) — 15 TOOLS =====
@@ -426,34 +522,33 @@ function telugishToolReply(r){
   return r;
 }
 async function askGemini(p){
+  setThinking(true);
   add('J.A.R.V.I.S: Thinking...','ai');
-  if(isAgentModeRequest(p)){
-    try{
+  try{
+    if(isAgentModeRequest(p)){
       const reply=await runAgent(p);
       MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:reply}); saveMemory();
       chat.lastChild.innerText='J.A.R.V.I.S: '+reply; speak(reply);
-    }catch(e){
-      console.error('J.A.R.V.I.S agent error:',e);
-      chat.lastChild.innerText='J.A.R.V.I.S: AGENT ERROR - '+(e?.message||'Request failed.');
+      return;
     }
-    return;
-  }
-  try{
-    let toolReply=await handleTools(p);
+    let toolReply;
+    try{toolReply=await handleTools(p);}
+    catch(e){console.error('Tool command failed:',e);chat.lastChild.innerText='J.A.R.V.I.S: Command execute cheyyalekapoyanu. Inko sari try cheddam.';return;}
     const containsSecret=typeof toolReply==='string'&&toolReply.startsWith('Your strong password: ');
-    if(toolReply) toolReply=telugishToolReply(toolReply);
+    if(toolReply)toolReply=telugishToolReply(toolReply);
     if(toolReply){
-      if(!containsSecret){ MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:toolReply}); saveMemory(); }
+      if(!containsSecret){MEMORY.push({role:'user',text:p});MEMORY.push({role:'model',text:toolReply});saveMemory();}
       chat.lastChild.innerText='J.A.R.V.I.S: '+toolReply;
       speak(containsSecret?'Password generated. Check the screen.':toolReply);
       return;
     }
-  }catch(e){console.error('Tool command failed:',e);chat.lastChild.innerText='J.A.R.V.I.S: Command execute cheyyalekapoyanu. Inko sari try cheddam.';return;}
-  try{
     const reply=await callGemini(p);
-    MEMORY.push({role:'user',text:p}); MEMORY.push({role:'model',text:reply}); saveMemory();
-    chat.lastChild.innerText='J.A.R.V.I.S: '+reply; speak(reply);
-  }catch(e){ chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+e.message; }
+    MEMORY.push({role:'user',text:p});MEMORY.push({role:'model',text:reply});saveMemory();
+    chat.lastChild.innerText='J.A.R.V.I.S: '+reply;speak(reply);
+  }catch(e){
+    console.error('J.A.R.V.I.S request failed:',e);
+    chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+(e?.message||'Request failed.');
+  }finally{setThinking(false);}
 }
 
 // ===== 5. VISION =====
@@ -470,30 +565,24 @@ imgInput.onchange=()=>{
   reader.readAsDataURL(file);
 };
 async function askVision(base64,mime,q){
-  add('J.A.R.V.I.S: Analyzing image...','ai');
-  if(!API_KEY){chat.lastChild.innerText='J.A.R.V.I.S: ERROR - Gemini API key is missing. Reload the page and enter your key.';return;}
-  let lastErr;
-  for(const m of MODELS){
-    try{
-      const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+encodeURIComponent(API_KEY),
-        {method:"POST",headers:{"Content-Type":"application/json"},
-         body:JSON.stringify({systemInstruction:{parts:[{text:"You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using Telugu script for Telugu and English for technical terms. Keep replies concise, conversational, empathetic, and easy to say aloud. Avoid robotic or overly formal wording, repetitive greetings, and calling the user Boss."}]},contents:[{parts:[{text:q},{inline_data:{mime_type:mime,data:base64}}]}]})});
-      const data=await res.json();
-      if(data.error){
-        const message=data.error.message || 'Gemini image request failed.';
-        lastErr=new Error(message);
-        if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message)) continue;
-        throw lastErr;
-      }
-      const reply=data?.candidates?.[0]?.content?.parts?.map(part=>part.text).filter(Boolean).join('\n');
-      if(!reply){
-        const reason=data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
-        throw new Error(reason ? 'Gemini could not analyze this image ('+reason+').' : 'Gemini returned an empty response.');
-      }
-      chat.lastChild.innerText='J.A.R.V.I.S: '+reply; speak(reply); return;
-    }catch(e){ lastErr=e; }
-  }
-  chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+lastErr.message;
+  setThinking(true);add('J.A.R.V.I.S: Analyzing image...','ai');
+  try{
+    if(!API_KEY){chat.lastChild.innerText='J.A.R.V.I.S: ERROR - Gemini API key is missing. Reload the page and enter your key.';return;}
+    let lastErr;
+    for(const m of MODELS){
+      try{
+        const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+encodeURIComponent(API_KEY),
+          {method:"POST",headers:{"Content-Type":"application/json"},
+           body:JSON.stringify({systemInstruction:{parts:[{text:"You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using Telugu script for Telugu and English for technical terms. Keep replies concise, conversational, empathetic, and easy to say aloud. Avoid robotic or overly formal wording, repetitive greetings, and calling the user Boss."}]},contents:[{parts:[{text:q},{inline_data:{mime_type:mime,data:base64}}]}]})});
+        const data=await res.json();
+        if(data.error){const message=data.error.message||'Gemini image request failed.';lastErr=new Error(message);if(/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message))continue;throw lastErr;}
+        const reply=data?.candidates?.[0]?.content?.parts?.map(part=>part.text).filter(Boolean).join('\n');
+        if(!reply){const reason=data?.promptFeedback?.blockReason||data?.candidates?.[0]?.finishReason;throw new Error(reason?'Gemini could not analyze this image ('+reason+').' :'Gemini returned an empty response.');}
+        chat.lastChild.innerText='J.A.R.V.I.S: '+reply;speak(reply);return;
+      }catch(e){lastErr=e;}
+    }
+    chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+(lastErr?.message||'Image analysis failed.');
+  }finally{setThinking(false);}
 }
 
 // ===== 6. SPEECH + TTS =====
@@ -509,6 +598,26 @@ function speak(t){ if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtte
 
 // ===== 7. SEND + CLEAR =====
 document.getElementById('send').onclick=()=>{ const t=input.value.trim(); if(!t)return;
-  add('YOU: '+t,'user'); input.value=''; askGemini(t); };
-clearBtn.onclick=()=>{ MEMORY=[]; saveMemory(); chat.innerHTML=''; add('SYSTEM: Memory cleared.','ai'); };
-function add(t,w){const d=document.createElement('div');d.className='msg '+w;d.innerText=t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;}
+  add('YOU: '+t,'user'); input.value=''; input.style.height='auto'; askGemini(t); };
+clearBtn.onclick=()=>{MEMORY=[];saveMemory();chat.replaceChildren();document.body.classList.remove('has-conversation');setThinking(false);};
+function add(t,w){const d=document.createElement('div');d.className='msg '+w;d.innerText=t;chat.appendChild(d);document.body.classList.toggle('has-conversation',chat.children.length>0);chat.scrollTop=chat.scrollHeight;}
+
+document.getElementById('new-chat').addEventListener('click',startNewConversation);
+menuButton.addEventListener('click',toggleSidebar);
+sidebarToggle.addEventListener('click',toggleSidebar);
+sidebarBackdrop.addEventListener('click',()=>{document.body.classList.remove('sidebar-open');sidebarBackdrop.hidden=true;});
+settingsOpen.addEventListener('click',openSettings);
+settingsClose.addEventListener('click',closeSettings);
+settingsScrim.addEventListener('click',closeSettings);
+themeSelect.addEventListener('change',()=>applyTheme(themeSelect.value));
+clearMemorySetting.addEventListener('click',()=>{clearBtn.click();closeSettings();});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){
+    if(!settingsPanel.hidden)closeSettings();
+    document.body.classList.remove('sidebar-open');sidebarBackdrop.hidden=true;
+  }
+  if(event.key==='Enter'&&!event.shiftKey&&document.activeElement===input){event.preventDefault();document.getElementById('send').click();}
+});
+input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';});
+document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{input.value=button.dataset.prompt||'';input.focus();input.dispatchEvent(new Event('input'));}));
+

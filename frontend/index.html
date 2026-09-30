@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0d12">
   <meta name="description" content="J.A.R.V.I.S personal AI assistant">
   <title>J.A.R.V.I.S — Personal AI</title>
-  <link rel="stylesheet" href="style.css?v=jarvis-premium-ui-20260930-2">
+  <link rel="stylesheet" href="style.css?v=jarvis-scroll-cinematic-20260930">
 </head>
 <body>
   <div class="app-shell">
@@ -59,8 +59,14 @@
       <section class="conversation-stage" id="conversation-stage" aria-label="Conversation">
         <div class="welcome" id="welcome">
           <div class="hero-orb" aria-hidden="true">
-            <span class="orb-halo orb-halo-one"></span><span class="orb-halo orb-halo-two"></span>
-            <span class="orb-core"><svg viewBox="0 0 44 44"><path d="M22 6v32M6 22h32M10.7 10.7l22.6 22.6M33.3 10.7 10.7 33.3"/><circle cx="22" cy="22" r="6"/></svg></span>
+            <span class="orb-aura"></span>
+            <span class="orb-ring orb-ring-outer"></span>
+            <span class="orb-ring orb-ring-middle"></span>
+            <span class="orb-ring orb-ring-inner"></span>
+            <span class="orb-sweep"></span>
+            <span class="orb-scan"></span>
+            <span class="orb-particle orb-particle-one"></span><span class="orb-particle orb-particle-two"></span><span class="orb-particle orb-particle-three"></span>
+            <span class="orb-core"><svg viewBox="0 0 64 64"><circle class="core-orbit" cx="32" cy="32" r="20"/><path d="M32 5v12m0 30v12M5 32h12m30 0h12M13 13l9 9m20 20 9 9m0-38-9 9m-20 20-9 9"/><circle cx="32" cy="32" r="8"/><circle class="core-point" cx="32" cy="32" r="2.5"/></svg></span>
           </div>
           <div class="welcome-copy">
             <p class="eyebrow"><span></span> YOUR PERSONAL AI</p>
@@ -87,8 +93,8 @@
 
       <footer class="composer-dock">
         <div class="thinking-status" id="thinking-status" aria-live="polite" hidden>
-          <span class="thinking-orb" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span>J.A.R.V.I.S is thinking</span><span class="thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="thinking-orb" aria-hidden="true"><i class="thinking-ring"></i><i class="thinking-core"></i></span>
+          <span id="thinking-label">J.A.R.V.I.S is thinking</span><span class="thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
         <div class="composer-shell">
           <button class="composer-tool" id="cam-btn" type="button" aria-label="Analyze image" title="Attach an image">
@@ -118,6 +124,6 @@
     </aside>
   </div>
 
-  <script src="script.js?v=jarvis-premium-ui-20260930"></script>
+  <script src="script.js?v=jarvis-scroll-cinematic-20260930"></script>
 </body>
 </html>

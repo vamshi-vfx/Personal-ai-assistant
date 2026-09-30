@@ -83,7 +83,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .prompt-card small{overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
 .prompt-arrow{margin-left:auto;color:var(--subtle);font-size:13px;transition:transform .18s ease,color .18s ease}
 .prompt-card:hover .prompt-arrow{transform:translate(2px,-2px);color:var(--accent)}
-.chat{display:none;position:relative;flex:1 1 auto;flex-direction:column;gap:5px;width:min(100%,900px);height:auto;min-height:0;margin:0 auto;padding:20px 34px 24px;overflow-x:hidden;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;scrollbar-gutter:stable}
+.chat{display:none;position:relative;flex:1 1 0%;flex-direction:column;gap:5px;width:min(100%,900px);height:auto;min-height:0;margin:0 auto;padding:20px 34px 24px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;scrollbar-gutter:stable}
+.chat>.msg{flex:0 0 auto}
 body.has-conversation .welcome{display:none}
 body.has-conversation .conversation-stage{overflow:hidden}
 body.has-conversation .chat{display:flex;flex-direction:column}

@@ -6,7 +6,34 @@
   <meta name="theme-color" content="#0b0d12">
   <meta name="description" content="J.A.R.V.I.S personal AI assistant">
   <title>J.A.R.V.I.S — Personal AI</title>
+  
+  <!-- Existing CSS -->
   <link rel="stylesheet" href="style.css?v=jarvis-stage-grid-scroll-v8-20260930-final">
+
+  <!-- 👇 ORBS LIBRARY ADDED HERE 👇 -->
+  <script src="https://cdn.jsdelivr.net/npm/orbs@latest/dist/orbs.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/orbs@latest/dist/orbs.css">
+  
+  <!-- 👇 INLINE STYLE FOR THE NEW ORB CONTAINER 👇 -->
+  <style>
+    /* Container for the live Orb */
+    #jarvis-core-container {
+      width: 150px;       /* Size of the orb */
+      height: 150px;
+      margin: 0 auto 20px auto; /* Center it horizontally */
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    /* Ensure canvas inside looks good */
+    #jarvis-core-container canvas {
+      border-radius: 50%;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.4); /* Cyan Glow */
+      filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.6));
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -58,16 +85,12 @@
 
       <section class="conversation-stage" id="conversation-stage" aria-label="Conversation" tabindex="0">
         <div class="welcome" id="welcome">
-          <div class="hero-orb" aria-hidden="true">
-            <span class="orb-aura"></span>
-            <span class="orb-ring orb-ring-outer"></span>
-            <span class="orb-ring orb-ring-middle"></span>
-            <span class="orb-ring orb-ring-inner"></span>
-            <span class="orb-sweep"></span>
-            <span class="orb-scan"></span>
-            <span class="orb-particle orb-particle-one"></span><span class="orb-particle orb-particle-two"></span><span class="orb-particle orb-particle-three"></span>
-            <span class="orb-core"><svg viewBox="0 0 64 64"><circle class="core-orbit" cx="32" cy="32" r="20"/><path d="M32 5v12m0 30v12M5 32h12m30 0h12M13 13l9 9m20 20 9 9m0-38-9 9m-20 20-9 9"/><circle cx="32" cy="32" r="8"/><circle class="core-point" cx="32" cy="32" r="2.5"/></svg></span>
+          
+          <!-- 👇 OLD STATIC HERO-ORB REPLACED BY LIVE CANVAS CONTAINER 👇 -->
+          <div id="jarvis-core-container" aria-hidden="true">
+             <!-- JavaScript will inject the <canvas> here automatically -->
           </div>
+          
           <div class="welcome-copy">
             <p class="eyebrow"><span></span> YOUR PERSONAL AI</p>
             <h1>How can I help today?</h1>

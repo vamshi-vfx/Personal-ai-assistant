@@ -641,3 +641,81 @@ document.addEventListener('keydown',event=>{
 input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';});
 document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{input.value=button.dataset.prompt||'';input.focus();input.dispatchEvent(new Event('input'));}));
 
+
+// ===== ORBS INITIALIZATION =====
+let orbInstance = null;
+
+function initOrbs() {
+    const container = document.getElementById('jarvis-core-container');
+    if (!container) return; // Container లేకపోతే error రాకుండా skip చేయి
+
+    // Initialize the Orb with default settings
+    orbInstance = new Orbs(container, {
+        colorPrimary: '#00ffff',   // Default Cyan
+        colorSecondary: '#ff00ff', // Secondary Magenta
+        speed: 0.5,                // Idle Speed
+        complexity: 5              // Detail Level
+    });
+}
+
+// Function to change Orb appearance based on JARVIS status
+function setJarvisVisualState(state) {
+    if (!orbInstance) return;
+
+    switch(state) {
+        case 'IDLE': // Waiting
+            orbInstance.setSpeed(0.5);
+            orbInstance.setColor('#00ffff'); // Cyan
+            break;
+        
+        case 'LISTENING': // Mic Active
+            orbInstance.setSpeed(1.5);
+            orbInstance.setColor('#00ff00'); // Green
+            break;
+
+        case 'THINKING': // API Processing
+            orbInstance.setSpeed(3.0);      // Fast rotation
+            orbInstance.setColor('#ffa500'); // Orange/Yellow
+            break;
+
+        case 'SPEAKING': // TTS Playing
+            orbInstance.setSpeed(1.0);
+            orbInstance.setColor('#00ccff'); // Bright Blue
+            break;
+            
+        case 'ERROR':
+             orbInstance.setColor('#ff0000'); // Red
+             break;
+    }
+}
+
+// Call this when page loads
+window.addEventListener('load', () => {
+    initOrbs();
+    setJarvisVisualState('IDLE');
+});
+
+// Integrate with your existing functions
+// Example: Inside askGemini function
+async function askGemini(p){
+    setJarvisVisualState('THINKING'); // Start Thinking Animation
+    add('J.A.R.V.I.S: Thinking...','ai');
+    
+    try{
+        const reply=await callGemini(p);
+        
+        setJarvisVisualState('SPEAKING'); // Switch to Speaking Mode
+        chat.lastChild.innerText='J.A.R.V.I.S: '+reply;
+        speak(reply); 
+        
+        // Reset after speech ends (using utterance.onend is better, but timeout works for demo)
+        setTimeout(() => {
+             setJarvisVisualState('IDLE');
+        }, 3000); // Adjust time based on average reply length
+        
+    }catch(e){
+        setJarvisVisualState('ERROR');
+        chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+e.message;
+        setTimeout(()=>setJarvisVisualState('IDLE'), 2000);
+    }
+}

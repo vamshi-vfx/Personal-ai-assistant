@@ -202,4 +202,20 @@ body.sidebar-collapsed .profile-row{justify-content:center;padding-right:0;paddi
   .composer-note{max-width:340px;line-height:1.6}
   .thinking-status{font-size:10px;padding:6px 10px}
 }
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}\
+
+#jarvis-core-container {
+    width: 200px;       /* Size of the orb */
+    height: 200px;      /* Size of the orb */
+    margin: 20px auto;  /* Center it horizontally */
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Optional: Add a glow effect to the canvas inside */
+#jarvis-core-container canvas {
+    filter: drop-shadow(0 0 15px rgba(0, 255, 255, 0.6)); /* Cyan Glow */
+    border-radius: 50%;
+}

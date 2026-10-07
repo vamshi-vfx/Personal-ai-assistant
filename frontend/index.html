@@ -80,6 +80,24 @@
         <div class="topbar-title"><span>J.A.R.V.I.S</span><span class="topbar-divider">/</span><span class="topbar-subtitle">Personal assistant</span></div>
         <div class="topbar-actions">
           <span class="ready-badge"><span class="ready-dot"></span> READY</span>
+          
+            <!-- 👇 NEW WAKE WORD BUTTON ADDED HERE 👇 -->
+          <button class="icon-button wake-button" id="wake-btn" type="button" aria-label="Toggle Wake Word" title="Listen for 'Hey Jarvis'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+            </svg>
+          </button>
+          
+          <!-- Status Text for Wake Mode (Optional but good for UX) -->
+          <span id="wake-status" style="font-size: 0.7rem; color: #888; margin-right: 5px;">WAKE: OFF</span>
+
+          <!-- Existing Clear Button -->
+          <button class="icon-button clear-button" id="clear-btn" type="button" aria-label="Clear current conversation" title="Clear current conversation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m4 3v6m4-6v6"/></svg>
+          </button>
+        </div>
           <button class="icon-button clear-button" id="clear-btn" type="button" aria-label="Clear current conversation" title="Clear current conversation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m4 3v6m4-6v6"/></svg>
           </button>

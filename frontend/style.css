@@ -219,3 +219,25 @@ body.sidebar-collapsed .profile-row{justify-content:center;padding-right:0;paddi
     filter: drop-shadow(0 0 15px rgba(0, 255, 255, 0.6)); /* Cyan Glow */
     border-radius: 50%;
 }
+
+/* --- WAKE BUTTON STYLES --- */
+.wake-button {
+  position: relative;
+}
+
+/* When Wake Mode is ON, make the icon Green/Glowing */
+.wake-button.active svg {
+  stroke: #00ff00; /* Bright Green */
+  filter: drop-shadow(0 0 5px rgba(0, 255, 0, 0.5));
+}
+
+/* Optional: Pulse animation when listening */
+@keyframes pulse-wake {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.wake-button.listening svg {
+  animation: pulse-wake 1.5s infinite;
+}

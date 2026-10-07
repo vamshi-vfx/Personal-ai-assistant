@@ -11,7 +11,7 @@ let MEMORY = [];
 try {
   const storedMemory = JSON.parse(localStorage.getItem('jarvis_memory') || '[]');
   if (Array.isArray(storedMemory)) {
-    MEMORY = storedMemory.filter(m => m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string' && !(m.role === 'model' && /^(?:Your strong password:|ఇదిగో strong password:)/i.test(m.text));
+    MEMORY = storedMemory.filter(m => m && (m.role === 'user' || m.role === 'model') && typeof m.text === 'string' && !(m.role === 'model' && /^(?:Your strong password:|ఇదిగో strong password:)/i.test(m.text)));
     if (MEMORY.length !== storedMemory.length) localStorage.setItem('jarvis_memory', JSON.stringify(MEMORY));
   } else {
     localStorage.removeItem('jarvis_memory');
@@ -777,6 +777,10 @@ async function askGemini(p) {
     setTimeout(() => setJarvisVisualState('IDLE'), 2000);
   } finally {
     setThinking(false);
+    if (wakeCommandPending) {
+      wakeCommandPending = false;
+      if (wakeWordEnabled) scheduleWakeRestart();
+    }
   }
 }
 
@@ -861,38 +865,198 @@ async function askVision(base64, mime, q) {
 // ===== 6. SPEECH + TTS =====
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const rec = SR ? new SR() : null;
+const wakeBtn = document.getElementById('wake-btn');
+const wakeStatus = document.getElementById('wake-status');
+const WAKE_WORD = 'hey jarvis';
+let wakeWordEnabled = false;
+let wakeAwaitingCommand = false;
+let wakeCommandPending = false;
+let recognitionActive = false;
+let recognitionMode = 'manual';
+let wakeRestartTimer = null;
+
 if (rec) rec.lang = 'en-US';
-if (rec) rec.onresult = (e) => {
-  const t = e.results[0][0].transcript;
-  add('YOU: ' + t, 'user');
-  askGemini(t);
-};
+
+function updateWakeUI(message) {
+  if (wakeBtn) {
+    wakeBtn.classList.toggle('active', wakeWordEnabled);
+    wakeBtn.classList.toggle('listening', wakeWordEnabled && recognitionActive);
+    wakeBtn.setAttribute('aria-pressed', String(wakeWordEnabled));
+    wakeBtn.title = wakeWordEnabled ? "Listening for 'Hey Jarvis'" : "Listen for 'Hey Jarvis'";
+  }
+  if (wakeStatus) {
+    wakeStatus.textContent = message || (wakeWordEnabled
+      ? (wakeAwaitingCommand ? 'SAY COMMAND' : recognitionActive ? 'LISTENING...' : 'WAKE: ON')
+      : 'WAKE: OFF');
+  }
+}
+
+function processVoiceCommand(transcript) {
+  const command = String(transcript || '').trim();
+  if (!command) return;
+  add('YOU: ' + command, 'user');
+  askGemini(command);
+}
+
+function stopRecognition() {
+  if (!rec || !recognitionActive) return;
+  try { rec.stop(); } catch (e) { recognitionActive = false; }
+}
+
+function startRecognition(mode) {
+  if (!rec || recognitionActive) return false;
+  recognitionMode = mode || 'manual';
+  rec.continuous = recognitionMode === 'wake';
+  rec.interimResults = false;
+  try {
+    rec.start();
+    recognitionActive = true;
+    if (recognitionMode === 'manual') micBtn.classList.add('listening');
+    updateWakeUI();
+    setJarvisVisualState('LISTENING');
+    return true;
+  } catch (e) {
+    recognitionActive = false;
+    micBtn.classList.remove('listening');
+    if (recognitionMode === 'wake') wakeWordEnabled = false;
+    updateWakeUI();
+    add('SYSTEM: Voice input could not start. Check microphone permission and try again.', 'ai');
+    setJarvisVisualState('ERROR');
+    setTimeout(() => { if (!document.body.classList.contains('is-thinking')) setJarvisVisualState('IDLE'); }, 2000);
+    return false;
+  }
+}
+
+function scheduleWakeRestart() {
+  if (wakeRestartTimer) clearTimeout(wakeRestartTimer);
+  if (!wakeWordEnabled || wakeCommandPending) return;
+  wakeRestartTimer = setTimeout(() => {
+    wakeRestartTimer = null;
+    if (wakeWordEnabled && !recognitionActive && !wakeCommandPending) startRecognition('wake');
+  }, 500);
+}
+
+if (rec) {
+  rec.onstart = () => {
+    recognitionActive = true;
+    updateWakeUI();
+    setJarvisVisualState('LISTENING');
+  };
+
+  rec.onresult = event => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (!result.isFinal) continue;
+      const transcript = result[0]?.transcript?.trim();
+      if (!transcript) continue;
+
+      if (!wakeWordEnabled) {
+        if (recognitionMode === 'manual') processVoiceCommand(transcript);
+        continue;
+      }
+
+      const lower = transcript.toLowerCase();
+      const wakeIndex = lower.indexOf(WAKE_WORD);
+      if (wakeAwaitingCommand) {
+        wakeAwaitingCommand = false;
+        const command = wakeIndex >= 0
+          ? transcript.slice(wakeIndex + WAKE_WORD.length).replace(/^[\s,.:;!?-]+/, '').trim()
+          : transcript;
+        updateWakeUI('PROCESSING...');
+        if (command) {
+          wakeCommandPending = true;
+          stopRecognition();
+          processVoiceCommand(command);
+          return;
+        }
+        continue;
+      }
+
+      if (wakeIndex < 0) continue;
+      const command = transcript.slice(wakeIndex + WAKE_WORD.length).replace(/^[\s,.:;!?-]+/, '').trim();
+      if (command) {
+        wakeCommandPending = true;
+        updateWakeUI('PROCESSING...');
+        stopRecognition();
+        processVoiceCommand(command);
+        return;
+      }
+      wakeAwaitingCommand = true;
+      updateWakeUI('SAY COMMAND');
+    }
+  };
+
+  rec.onerror = event => {
+    recognitionActive = false;
+    micBtn.classList.remove('listening');
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      wakeWordEnabled = false;
+      wakeAwaitingCommand = false;
+      add('SYSTEM: Microphone access was blocked. Allow microphone permission to use voice.', 'ai');
+    } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      add('SYSTEM: Voice input failed. Please try again.', 'ai');
+    }
+    updateWakeUI();
+  };
+
+  rec.onend = () => {
+    recognitionActive = false;
+    micBtn.classList.remove('listening');
+    if (wakeWordEnabled && !wakeCommandPending) {
+      updateWakeUI('RECONNECTING...');
+      scheduleWakeRestart();
+    } else {
+      updateWakeUI();
+      if (!document.body.classList.contains('is-thinking')) setJarvisVisualState('IDLE');
+    }
+  };
+} else {
+  if (wakeBtn) wakeBtn.disabled = true;
+  if (wakeStatus) wakeStatus.textContent = 'VOICE UNAVAILABLE';
+}
+
+function toggleWakeWord() {
+  if (!rec) {
+    add('SYSTEM: Wake word is not supported in this browser.', 'ai');
+    return;
+  }
+  wakeWordEnabled = !wakeWordEnabled;
+  wakeAwaitingCommand = false;
+  updateWakeUI();
+  if (wakeWordEnabled) {
+    if (recognitionActive && recognitionMode === 'manual') stopRecognition();
+    else if (!recognitionActive) startRecognition('wake');
+  } else {
+    if (wakeRestartTimer) clearTimeout(wakeRestartTimer);
+    wakeRestartTimer = null;
+    stopRecognition();
+    updateWakeUI();
+  }
+}
+
+if (wakeBtn) wakeBtn.addEventListener('click', toggleWakeWord);
+
 micBtn.onclick = () => {
   if (!rec) {
     add('SYSTEM: Voice input is not supported in this browser.', 'ai');
     return;
   }
-  try {
-    rec.start();
-    micBtn.innerText = 'LISTENING...';
-    setJarvisVisualState('LISTENING');
-  } catch (e) {
-    micBtn.innerText = '🎙️';
+  if (wakeWordEnabled) {
+    add('SYSTEM: Turn off Wake Word before using one-time voice input.', 'ai');
+    return;
   }
-};
-if (rec) rec.onend = () => {
-  micBtn.innerText = '🎙️';
-  setJarvisVisualState('IDLE');
+  if (recognitionActive && recognitionMode === 'manual') {
+    stopRecognition();
+    return;
+  }
+  startRecognition('manual');
 };
 
 let voices = [];
 function loadVoices() {
   if (!('speechSynthesis' in window)) return;
-  try {
-    voices = window.speechSynthesis.getVoices();
-  } catch (e) {
-    voices = [];
-  }
+  try { voices = window.speechSynthesis.getVoices(); }
+  catch (e) { voices = []; }
 }
 loadVoices();
 if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -902,18 +1066,10 @@ function speak(t) {
   const u = new SpeechSynthesisUtterance(t);
   u.rate = 0.96;
   u.pitch = 1.0;
-
   const isTelugu = /[\u0C00-\u0C7F]/.test(t);
-  const v = isTelugu ? voices.find(v => /^te[-_]/i.test(v.lang)) : voices.find(v => /^en[-_]/i.test(v.lang));
-  if (v) {
-    u.voice = v;
-    u.lang = v.lang;
-  } else if (isTelugu) {
-    u.lang = 'te-IN';
-  } else {
-    u.lang = 'en-US';
-  }
-
+  const voice = isTelugu ? voices.find(v => /^te[-_]/i.test(v.lang)) : voices.find(v => /^en[-_]/i.test(v.lang));
+  if (voice) { u.voice = voice; u.lang = voice.lang; }
+  else u.lang = isTelugu ? 'te-IN' : 'en-US';
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(u);
 }

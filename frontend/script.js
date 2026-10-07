@@ -815,6 +815,7 @@ let wakeWordEnabled = false;
 let wakeAwaitingCommand = false;
 let wakePromptPending = false;
 let wakeReplyPending = false;
+let pendingWakeReplyText = null;
 let wakeCommandPending = false;
 let recognitionActive = false;
 let recognitionMode = 'manual';
@@ -1007,8 +1008,13 @@ function handleWakeVisibilityChange() {
   // Background tabs may suspend speech recognition/TTS while another app is open.
   // On return, finish any interrupted reply and resume the active command session.
   if (wakeReplyPending) {
-    if ('speechSynthesis' in window && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-    finishWakeReply();
+    if (pendingWakeReplyText !== null) {
+      const reply = pendingWakeReplyText;
+      pendingWakeReplyText = null;
+      speak(reply, finishWakeReply);
+    } else if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
     return;
   }
   if (wakePromptPending) {
@@ -1050,6 +1056,7 @@ if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = loadVo
 
 function finishWakeReply() {
   wakeReplyPending = false;
+  pendingWakeReplyText = null;
   wakeCommandPending = false;
   if (wakeWordEnabled) {
     wakeAwaitingCommand = true;
@@ -1061,6 +1068,11 @@ function finishWakeReply() {
 function speakAssistantReply(text) {
   if (wakeWordEnabled && wakeCommandPending) {
     wakeReplyPending = true;
+    if (document.hidden) {
+      pendingWakeReplyText = String(text || '');
+      return;
+    }
+    pendingWakeReplyText = null;
     speak(text, finishWakeReply);
   } else speak(text);
 }

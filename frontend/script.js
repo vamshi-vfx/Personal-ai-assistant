@@ -675,11 +675,11 @@ function telugishToolReply(r) {
   if (r.startsWith('Could not retrieve')) return 'ఈ పదానికి meaning ఇప్పుడే దొరకలేదు. కొద్దిసేపటికి మళ్లీ try చెయ్యండి.';
   if (r.startsWith('Your strong password: ')) return 'ఇదిగో strong password: ' + r.slice('Your strong password: '.length);
   if (r.startsWith('Secure password generation')) return 'ఈ browserలో secure password generate చేయడం అందుబాటులో లేదు.';
-  if (r.startsWith('Opening YouTube')) return 'YouTube ఓపెన్ చేస్తున్నాను.';
-  if (r.startsWith('Opening Google')) return 'Google ఓపెన్ చేస్తున్నాను.';
-  if (r.startsWith('Opening ')) return r.replace(', Boss.', '') + ' చేస్తున్నాను.';
-  if (r.startsWith('Searching Google for ')) return 'Googleలో ' + r.slice(21).replace(', Boss.', '') + ' కోసం వెతుకుతున్నాను.';
-  if (r.startsWith('Searching YouTube for ')) return 'YouTubeలో ' + r.slice(22).replace(', Boss.', '') + ' కోసం వెతుకుతున్నాను.';
+  if (r.startsWith('Opening YouTube')) return 'YouTube తెరిచాను, Boss. తర్వాత ఏం చేయాలి?';
+  if (r.startsWith('Opening Google')) return 'Google తెరిచాను, Boss. తర్వాత ఏం చేయాలి?';
+  if (r.startsWith('Opening ')) return r.slice(8).replace(', Boss.', '') + ' తెరిచాను, Boss. తర్వాత ఏం చేయాలి?';
+  if (r.startsWith('Searching Google for ')) return 'Googleలో ' + r.slice(21).replace(', Boss.', '') + ' కోసం వెతికాను, Boss. తర్వాత ఏం చేయాలి?';
+  if (r.startsWith('Searching YouTube for ')) return 'YouTubeలో ' + r.slice(22).replace(', Boss.', '') + ' కోసం వెతికాను, Boss. తర్వాత ఏం చేయాలి?';
   if (r.startsWith('Tell me a song or search phrase for YouTube')) return 'YouTube kosam song leda search phrase cheppu.';
   if (r.startsWith('Only http and https')) return 'Http లేదా https link మాత్రమే open చేయగలను.';
   if (r.startsWith('That link does not look valid')) return 'ఈ link validగా కనిపించడం లేదు.';

@@ -1060,27 +1060,34 @@ function startContinuousListening() {
     rec.onresult = (event) => {
         const transcript = event.results[0][0].transcript.toLowerCase();
         console.log("Heard:", transcript);
+      
+// ===== WAKE WORD UI LOGIC =====
+const wakeBtn = document.getElementById('wake-btn');
+const wakeStatus = document.getElementById('wake-status');
 
-      /* --- WAKE BUTTON STYLES --- */
-.wake-button {
-  position: relative;
-}
-
-/* When Wake Mode is ON, make the icon Green/Glowing */
-.wake-button.active svg {
-  stroke: #00ff00; /* Bright Green */
-  filter: drop-shadow(0 0 5px rgba(0, 255, 0, 0.5));
-}
-
-/* Optional: Pulse animation when listening */
-@keyframes pulse-wake {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
-}
-
-.wake-button.listening svg {
-  animation: pulse-wake 1.5s infinite;
+if (wakeBtn && wakeStatus) {
+    wakeBtn.addEventListener('click', () => {
+        // Toggle Class for visual change
+        wakeBtn.classList.toggle('active');
+        
+        if (wakeBtn.classList.contains('active')) {
+            wakeStatus.innerText = "LISTENING...";
+            wakeStatus.style.color = "#00ff00";
+          
+            // Call your actual startContinuousListening() function here
+            if(typeof startContinuousListening === 'function') {
+                startContinuousListening();
+            }
+        } else {
+            wakeStatus.innerText = "WAKE: OFF";
+            wakeStatus.style.color = "#888";
+          
+             // Call your stopContinuousListening() function here
+            if(typeof stopContinuousListening === 'function') {
+                stopContinuousListening();
+            }
+        }
+    });
 }
         
         // Check if Wake Word exists in the heard phrase

@@ -4,7 +4,42 @@ if (!API_KEY) {
   API_KEY = prompt('Enter your Gemini API Key:');
   if (API_KEY) localStorage.setItem('jarvis_key', API_KEY);
 }
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+
+function extractInteractionText(data) {
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
+  const steps = Array.isArray(data?.steps) ? data.steps : Array.isArray(data?.outputs) ? data.outputs : [];
+  return steps
+    .filter(step => step && (step.type === 'model_output' || step.type === 'text' || !step.type))
+    .flatMap(step => Array.isArray(step.content) ? step.content : typeof step.text === 'string' ? [{ type: 'text', text: step.text }] : [])
+    .filter(part => part && (part.type === 'text' || typeof part.text === 'string') && typeof part.text === 'string')
+    .map(part => part.text)
+    .join('\n')
+    .trim();
+}
+
+async function requestGeminiInteraction(input, systemInstruction = GEMINI_SYSTEM_INSTRUCTION) {
+  if (!API_KEY) throw new Error('Gemini API key is missing. Reload the page and enter it again.');
+  const payload = { model: GEMINI_MODEL, input, store: false };
+  if (systemInstruction) payload.system_instruction = systemInstruction;
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': API_KEY,
+      'Api-Revision': '2026-05-20'
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) {
+    throw new Error(data?.error?.message || 'Gemini request failed (' + response.status + ').');
+  }
+  const reply = extractInteractionText(data);
+  if (!reply) throw new Error(data?.status === 'failed' ? 'Gemini could not complete this request.' : 'Gemini returned an empty response.');
+  return reply;
+}
+const GEMINI_MODEL = 'gemini-3.8-flash';
+const GEMINI_SYSTEM_INSTRUCTION = 'You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix, using clear concise language. If you do not know, say so plainly.';
 
 // ===== 2. MEMORY =====
 let MEMORY = [];
@@ -538,7 +573,7 @@ function parseAgentToolPlan(responseText) {
 
 function isTemporaryGeminiError(error) {
   const message = String(error?.message || error || '');
-  return /high demand|temporar|quota|rate.?limit|overload|unavailable|429|503|5\d\d|failed to fetch|network error|unknown model|model.*(?:not found|unavailable|unsupported)/i.test(message);
+  return /high demand|temporar|quota|rate.?limit|overload|unavailable|no longer available|429|503|5\d\d|failed to fetch|network error|unknown model|model.*(?:not found|unavailable|unsupported)/i.test(message);
 }
 
 function fallbackAgentToolPlan(goal) {
@@ -558,26 +593,9 @@ function localAgentSummary(results) {
 }
 
 async function callGeminiRaw(prompt) {
-  if (!API_KEY) throw new Error('Gemini API key ledu. Page reload chesi key enter cheyyi.');
-  let lastError = new Error('Gemini agent request failed.');
-  for (const model of MODELS) {
-    try {
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(API_KEY), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: String(prompt) }] }] })
-      });
-      const data = await res.json().catch(() => ({}));
-      const reply = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').filter(Boolean).join('\n').trim();
-      if (res.ok && reply) return reply;
-      const message = data?.error?.message || 'Gemini agent returned an empty response.';
-      lastError = new Error(message);
-      if (!/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model|5\d\d|429/i.test(message)) break;
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  throw lastError;
+  return requestGeminiInteraction([
+    { type: 'user_input', content: [{ type: 'text', text: String(prompt) }] }
+  ], '');
 }
 
 async function runAgent(goal) {
@@ -618,44 +636,12 @@ async function runAgent(goal) {
 
 // ===== 4. GEMINI BRAIN =====
 async function callGemini(p) {
-  if (!API_KEY) throw new Error('Gemini API key is missing. Reload the page and enter your key.');
-  const contents = MEMORY.slice(-12).map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-  contents.push({ role: 'user', parts: [{ text: p }] });
-  let lastErr;
-
-  for (const m of MODELS) {
-    try {
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(API_KEY), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: 'You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using simple clear language. If you do not know, say so plainly.' }]
-          },
-          contents
-        })
-      });
-
-      const data = await res.json();
-      if (data.error) {
-        const message = data.error.message || 'Gemini request failed.';
-        lastErr = new Error(message);
-        if (/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message)) continue;
-        throw lastErr;
-      }
-
-      const reply = data?.candidates?.[0]?.content?.parts?.map(part => part.text).filter(Boolean).join('\n');
-      if (!reply) {
-        const reason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
-        throw new Error(reason ? 'Gemini could not answer this request (' + reason + ').' : 'Gemini returned an empty response.');
-      }
-      return reply;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-
-  throw lastErr || new Error('Gemini request failed.');
+  const history = MEMORY.slice(-12).map(message => ({
+    type: message.role === 'user' ? 'user_input' : 'model_output',
+    content: [{ type: 'text', text: message.text }]
+  }));
+  history.push({ type: 'user_input', content: [{ type: 'text', text: p }] });
+  return requestGeminiInteraction(history);
 }
 
 function telugishToolReply(r) {
@@ -805,56 +791,16 @@ async function askVision(base64, mime, q) {
   setJarvisVisualState('THINKING');
   const replyNode = add('J.A.R.V.I.S: Analyzing image...', 'ai', true);
   try {
-    if (!API_KEY) {
-      setReply(replyNode, 'J.A.R.V.I.S: ERROR - Gemini API key is missing. Reload the page and enter your key.');
-      setJarvisVisualState('ERROR');
-      setTimeout(() => setJarvisVisualState('IDLE'), 2000);
-      return;
-    }
-
-    let lastErr;
-    for (const model of MODELS) {
-      try {
-        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(API_KEY), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: {
-              parts: [{ text: 'You are J.A.R.V.I.S, a friendly personal assistant for Vamshi. Reply naturally in a warm Telugu-English mix (Telugish), mostly using simple language.' }]
-            },
-            contents: [{
-              role: 'user',
-              parts: [
-                { text: q },
-                { inlineData: { mimeType: mime || 'image/jpeg', data: base64 } }
-              ]
-            }]
-          })
-        });
-
-        const data = await res.json();
-        if (data.error) {
-          const message = data.error.message || 'Gemini image request failed.';
-          lastErr = new Error(message);
-          if (/high demand|temporar|quota|rate|unavailable|no longer available|deprecated|not found|not supported|does not exist|unknown model/i.test(message)) continue;
-          throw lastErr;
-        }
-        const reply = data?.candidates?.[0]?.content?.parts?.map(part => part.text).filter(Boolean).join('\n');
-        if (!reply) {
-          const reason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
-          throw new Error(reason ? 'Gemini could not analyze this image (' + reason + ').' : 'Gemini returned an empty response.');
-        }
-        setReply(replyNode, 'J.A.R.V.I.S: ' + reply);
-        setJarvisVisualState('SPEAKING');
-        speak(reply);
-        setTimeout(() => setJarvisVisualState('IDLE'), 2500);
-        return;
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-
-    setReply(replyNode, 'J.A.R.V.I.S: ERROR - ' + (lastErr?.message || 'Image analysis failed.'));
+    const reply = await requestGeminiInteraction([
+      { type: 'text', text: q },
+      { type: 'image', data: base64, mime_type: mime || 'image/jpeg' }
+    ]);
+    setReply(replyNode, 'J.A.R.V.I.S: ' + reply);
+    setJarvisVisualState('SPEAKING');
+    speak(reply);
+    setTimeout(() => setJarvisVisualState('IDLE'), 2500);
+  } catch (e) {
+    setReply(replyNode, 'J.A.R.V.I.S: ERROR - ' + (e?.message || 'Image analysis failed.'));
     setJarvisVisualState('ERROR');
     setTimeout(() => setJarvisVisualState('IDLE'), 2000);
   } finally {
@@ -867,15 +813,16 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const rec = SR ? new SR() : null;
 const wakeBtn = document.getElementById('wake-btn');
 const wakeStatus = document.getElementById('wake-status');
-const WAKE_WORD = 'hey jarvis';
+const WAKE_WORD_PATTERN = /\bhey[\s,.:;!?-]*jarvis\b/i;
 let wakeWordEnabled = false;
 let wakeAwaitingCommand = false;
+let wakePromptPending = false;
 let wakeCommandPending = false;
 let recognitionActive = false;
 let recognitionMode = 'manual';
 let wakeRestartTimer = null;
 
-if (rec) rec.lang = 'en-US';
+if (rec) rec.lang = 'en-IN';
 
 function updateWakeUI(message) {
   if (wakeBtn) {
@@ -929,10 +876,10 @@ function startRecognition(mode) {
 
 function scheduleWakeRestart() {
   if (wakeRestartTimer) clearTimeout(wakeRestartTimer);
-  if (!wakeWordEnabled || wakeCommandPending) return;
+  if (!wakeWordEnabled || wakeCommandPending || wakePromptPending) return;
   wakeRestartTimer = setTimeout(() => {
     wakeRestartTimer = null;
-    if (wakeWordEnabled && !recognitionActive && !wakeCommandPending) startRecognition('wake');
+    if (wakeWordEnabled && !recognitionActive && !wakeCommandPending && !wakePromptPending) startRecognition('wake');
   }, 500);
 }
 
@@ -955,12 +902,11 @@ if (rec) {
         continue;
       }
 
-      const lower = transcript.toLowerCase();
-      const wakeIndex = lower.indexOf(WAKE_WORD);
+      const wakeMatch = transcript.match(WAKE_WORD_PATTERN);
       if (wakeAwaitingCommand) {
         wakeAwaitingCommand = false;
-        const command = wakeIndex >= 0
-          ? transcript.slice(wakeIndex + WAKE_WORD.length).replace(/^[\s,.:;!?-]+/, '').trim()
+        const command = wakeMatch
+          ? transcript.slice(wakeMatch.index + wakeMatch[0].length).replace(/^[\s,.:;!?-]+/, '').trim()
           : transcript;
         updateWakeUI('PROCESSING...');
         if (command) {
@@ -972,8 +918,8 @@ if (rec) {
         continue;
       }
 
-      if (wakeIndex < 0) continue;
-      const command = transcript.slice(wakeIndex + WAKE_WORD.length).replace(/^[\s,.:;!?-]+/, '').trim();
+      if (!wakeMatch) continue;
+      const command = transcript.slice(wakeMatch.index + wakeMatch[0].length).replace(/^[\s,.:;!?-]+/, '').trim();
       if (command) {
         wakeCommandPending = true;
         updateWakeUI('PROCESSING...');
@@ -982,7 +928,15 @@ if (rec) {
         return;
       }
       wakeAwaitingCommand = true;
+      wakePromptPending = true;
       updateWakeUI('SAY COMMAND');
+      stopRecognition();
+      add('J.A.R.V.I.S: చెప్పు, వింటున్నాను.', 'ai', true);
+      speak('చెప్పు, వింటున్నాను.', () => {
+        wakePromptPending = false;
+        if (wakeWordEnabled) scheduleWakeRestart();
+      });
+      return;
     }
   };
 
@@ -1002,7 +956,7 @@ if (rec) {
   rec.onend = () => {
     recognitionActive = false;
     micBtn.classList.remove('listening');
-    if (wakeWordEnabled && !wakeCommandPending) {
+    if (wakeWordEnabled && !wakeCommandPending && !wakePromptPending) {
       updateWakeUI('RECONNECTING...');
       scheduleWakeRestart();
     } else {
@@ -1061,17 +1015,35 @@ function loadVoices() {
 loadVoices();
 if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = loadVoices;
 
-function speak(t) {
-  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
-  const u = new SpeechSynthesisUtterance(t);
-  u.rate = 0.96;
-  u.pitch = 1.0;
+function speak(t, onComplete) {
+  let completed = false;
+  let fallbackTimer = null;
+  const finish = () => {
+    if (completed) return;
+    completed = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    if (typeof onComplete === 'function') onComplete();
+  };
+  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    finish();
+    return;
+  }
+  const utterance = new SpeechSynthesisUtterance(t);
+  utterance.rate = 0.96;
+  utterance.pitch = 1.0;
   const isTelugu = /[\u0C00-\u0C7F]/.test(t);
   const voice = isTelugu ? voices.find(v => /^te[-_]/i.test(v.lang)) : voices.find(v => /^en[-_]/i.test(v.lang));
-  if (voice) { u.voice = voice; u.lang = voice.lang; }
-  else u.lang = isTelugu ? 'te-IN' : 'en-US';
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
+  if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+  else utterance.lang = isTelugu ? 'te-IN' : 'en-IN';
+  utterance.onend = finish;
+  utterance.onerror = finish;
+  if (typeof onComplete === 'function') fallbackTimer = setTimeout(finish, 3500);
+  try {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    finish();
+  }
 }
 
 // ===== 7. SEND + CLEAR =====

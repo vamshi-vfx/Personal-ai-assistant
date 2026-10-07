@@ -404,7 +404,7 @@ async function handleTools(text) {
     const factor = /^(?:h|hr|hrs|hour|hours|గంట|గంటలు)/.test(unit) ? 3600000 : /^(?:s|sec|secs|second|seconds|సెకను|సెకన్లు)/.test(unit) ? 1000 : 60000;
     const duration = amount * factor;
     if (duration > 86400000) return 'Timer limit is 24 hours.';
-    setTimeout(() => speak('టైమర్ పూర్తైంది! ' + amount + ' ' + unit + ' అయ్యాయి.'), duration);
+    setTimeout(() => speakWithWakePause('టైమర్ పూర్తైంది! ' + amount + ' ' + unit + ' అయ్యాయి.'), duration);
     return 'Timer set for ' + amount + ' ' + unit + '.';
   }
 
@@ -717,7 +717,7 @@ async function askGemini(p) {
       saveMemory();
       setReply(replyNode, 'J.A.R.V.I.S: ' + reply);
       setJarvisVisualState('SPEAKING');
-      speak(reply);
+      speakAssistantReply(reply);
       setTimeout(() => setJarvisVisualState('IDLE'), 2500);
       return;
     }
@@ -743,7 +743,7 @@ async function askGemini(p) {
       }
       setReply(replyNode, 'J.A.R.V.I.S: ' + toolReply);
       setJarvisVisualState('SPEAKING');
-      speak(containsSecret ? 'Password generated. Check the screen.' : toolReply);
+      speakAssistantReply(containsSecret ? 'Password generated. Check the screen.' : toolReply);
       setTimeout(() => setJarvisVisualState('IDLE'), 2500);
       return;
     }
@@ -754,7 +754,7 @@ async function askGemini(p) {
     saveMemory();
     setReply(replyNode, 'J.A.R.V.I.S: ' + reply);
     setJarvisVisualState('SPEAKING');
-    speak(reply);
+    speakAssistantReply(reply);
     setTimeout(() => setJarvisVisualState('IDLE'), 2500);
   } catch (e) {
     console.error('J.A.R.V.I.S request failed:', e);
@@ -763,10 +763,7 @@ async function askGemini(p) {
     setTimeout(() => setJarvisVisualState('IDLE'), 2000);
   } finally {
     setThinking(false);
-    if (wakeCommandPending) {
-      wakeCommandPending = false;
-      if (wakeWordEnabled) scheduleWakeRestart();
-    }
+    if (wakeCommandPending && !wakeReplyPending) finishWakeReply();
   }
 }
 
@@ -817,6 +814,7 @@ const WAKE_WORD_PATTERN = /\bhey[\s,.:;!?-]*jarvis\b/i;
 let wakeWordEnabled = false;
 let wakeAwaitingCommand = false;
 let wakePromptPending = false;
+let wakeReplyPending = false;
 let wakeCommandPending = false;
 let recognitionActive = false;
 let recognitionMode = 'manual';
@@ -833,7 +831,7 @@ function updateWakeUI(message) {
   }
   if (wakeStatus) {
     wakeStatus.textContent = message || (wakeWordEnabled
-      ? (wakeAwaitingCommand ? 'SAY COMMAND' : recognitionActive ? 'LISTENING...' : 'WAKE: ON')
+      ? (document.hidden ? 'RETURN TO J.A.R.V.I.S' : wakeAwaitingCommand ? 'NEXT COMMAND' : recognitionActive ? 'LISTENING...' : 'WAKE: ON')
       : 'WAKE: OFF');
   }
 }
@@ -852,6 +850,7 @@ function stopRecognition() {
 
 function startRecognition(mode) {
   if (!rec || recognitionActive) return false;
+  if (mode === 'wake' && document.hidden) { updateWakeUI('RETURN TO J.A.R.V.I.S'); return false; }
   recognitionMode = mode || 'manual';
   rec.continuous = recognitionMode === 'wake';
   rec.interimResults = false;
@@ -876,10 +875,10 @@ function startRecognition(mode) {
 
 function scheduleWakeRestart() {
   if (wakeRestartTimer) clearTimeout(wakeRestartTimer);
-  if (!wakeWordEnabled || wakeCommandPending || wakePromptPending) return;
+  if (!wakeWordEnabled || wakeCommandPending || wakePromptPending || wakeReplyPending) return;
   wakeRestartTimer = setTimeout(() => {
     wakeRestartTimer = null;
-    if (wakeWordEnabled && !recognitionActive && !wakeCommandPending && !wakePromptPending) startRecognition('wake');
+    if (wakeWordEnabled && !document.hidden && !recognitionActive && !wakeCommandPending && !wakePromptPending && !wakeReplyPending) startRecognition('wake');
   }, 500);
 }
 
@@ -904,17 +903,18 @@ if (rec) {
 
       const wakeMatch = transcript.match(WAKE_WORD_PATTERN);
       if (wakeAwaitingCommand) {
-        wakeAwaitingCommand = false;
         const command = wakeMatch
           ? transcript.slice(wakeMatch.index + wakeMatch[0].length).replace(/^[\s,.:;!?-]+/, '').trim()
           : transcript;
-        updateWakeUI('PROCESSING...');
         if (command) {
+          wakeAwaitingCommand = false;
           wakeCommandPending = true;
+          updateWakeUI('PROCESSING...');
           stopRecognition();
           processVoiceCommand(command);
           return;
         }
+        if (wakeMatch) { promptForWakeCommand(); return; }
         continue;
       }
 
@@ -927,15 +927,7 @@ if (rec) {
         processVoiceCommand(command);
         return;
       }
-      wakeAwaitingCommand = true;
-      wakePromptPending = true;
-      updateWakeUI('SAY COMMAND');
-      stopRecognition();
-      add('J.A.R.V.I.S: చెప్పు, వింటున్నాను.', 'ai', true);
-      speak('చెప్పు, వింటున్నాను.', () => {
-        wakePromptPending = false;
-        if (wakeWordEnabled) scheduleWakeRestart();
-      });
+      promptForWakeCommand();
       return;
     }
   };
@@ -956,7 +948,9 @@ if (rec) {
   rec.onend = () => {
     recognitionActive = false;
     micBtn.classList.remove('listening');
-    if (wakeWordEnabled && !wakeCommandPending && !wakePromptPending) {
+    if (wakeWordEnabled && document.hidden) {
+      updateWakeUI('RETURN TO J.A.R.V.I.S');
+    } else if (wakeWordEnabled && !wakeCommandPending && !wakePromptPending && !wakeReplyPending) {
       updateWakeUI('RECONNECTING...');
       scheduleWakeRestart();
     } else {
@@ -988,6 +982,45 @@ function toggleWakeWord() {
   }
 }
 
+function promptForWakeCommand() {
+  wakeAwaitingCommand = true;
+  wakePromptPending = true;
+  updateWakeUI('SAY COMMAND');
+  stopRecognition();
+  add('J.A.R.V.I.S: చెప్పు, వింటున్నాను.', 'ai', true);
+  speak('చెప్పు, వింటున్నాను.', () => {
+    wakePromptPending = false;
+    if (wakeWordEnabled) scheduleWakeRestart();
+  });
+}
+
+function handleWakeVisibilityChange() {
+  if (!wakeWordEnabled) return;
+  if (document.hidden) {
+    if (wakeRestartTimer) clearTimeout(wakeRestartTimer);
+    wakeRestartTimer = null;
+    if (recognitionActive) stopRecognition();
+    updateWakeUI('RETURN TO J.A.R.V.I.S');
+    return;
+  }
+
+  // Background tabs may suspend speech recognition/TTS while another app is open.
+  // On return, finish any interrupted reply and resume the active command session.
+  if (wakeReplyPending) {
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+    finishWakeReply();
+    return;
+  }
+  if (wakePromptPending) {
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+    wakePromptPending = false;
+  }
+  if (!recognitionActive && !wakeCommandPending && !wakePromptPending && !wakeReplyPending) scheduleWakeRestart();
+}
+
+document.addEventListener('visibilitychange', handleWakeVisibilityChange);
+window.addEventListener('focus', handleWakeVisibilityChange);
+window.addEventListener('pageshow', handleWakeVisibilityChange);
 if (wakeBtn) wakeBtn.addEventListener('click', toggleWakeWord);
 
 micBtn.onclick = () => {
@@ -1015,6 +1048,33 @@ function loadVoices() {
 loadVoices();
 if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = loadVoices;
 
+function finishWakeReply() {
+  wakeReplyPending = false;
+  wakeCommandPending = false;
+  if (wakeWordEnabled) {
+    wakeAwaitingCommand = true;
+    updateWakeUI('NEXT COMMAND');
+    scheduleWakeRestart();
+  } else updateWakeUI();
+}
+
+function speakAssistantReply(text) {
+  if (wakeWordEnabled && wakeCommandPending) {
+    wakeReplyPending = true;
+    speak(text, finishWakeReply);
+  } else speak(text);
+}
+
+function speakWithWakePause(text) {
+  if (!wakeWordEnabled) { speak(text); return; }
+  wakePromptPending = true;
+  stopRecognition();
+  speak(text, () => {
+    wakePromptPending = false;
+    if (wakeWordEnabled) scheduleWakeRestart();
+  });
+}
+
 function speak(t, onComplete) {
   let completed = false;
   let fallbackTimer = null;
@@ -1037,7 +1097,7 @@ function speak(t, onComplete) {
   else utterance.lang = isTelugu ? 'te-IN' : 'en-IN';
   utterance.onend = finish;
   utterance.onerror = finish;
-  if (typeof onComplete === 'function') fallbackTimer = setTimeout(finish, 3500);
+  if (typeof onComplete === 'function') fallbackTimer = setTimeout(finish, Math.max(10000, Math.min(90000, String(t).length * 100)));
   try {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);

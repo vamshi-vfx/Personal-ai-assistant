@@ -1060,6 +1060,28 @@ function startContinuousListening() {
     rec.onresult = (event) => {
         const transcript = event.results[0][0].transcript.toLowerCase();
         console.log("Heard:", transcript);
+
+      /* --- WAKE BUTTON STYLES --- */
+.wake-button {
+  position: relative;
+}
+
+/* When Wake Mode is ON, make the icon Green/Glowing */
+.wake-button.active svg {
+  stroke: #00ff00; /* Bright Green */
+  filter: drop-shadow(0 0 5px rgba(0, 255, 0, 0.5));
+}
+
+/* Optional: Pulse animation when listening */
+@keyframes pulse-wake {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.wake-button.listening svg {
+  animation: pulse-wake 1.5s infinite;
+}
         
         // Check if Wake Word exists in the heard phrase
         if(transcript.includes(WAKE_WORD)) {

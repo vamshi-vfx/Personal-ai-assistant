@@ -1037,3 +1037,49 @@ window.addEventListener('load', () => {
   initOrbs();
   setJarvisVisualState('IDLE');
 });
+
+// ===== WAKE WORD ENGINE =====
+let wakeWordEnabled = false;
+const WAKE_WORD = "hey jarvis"; // Lowercase for comparison
+
+function toggleWakeWord() {
+    wakeWordEnabled = !wakeWordEnabled;
+    const btn = document.getElementById('wake-btn'); // Assume we added a button
+    if(wakeWordEnabled) {
+        btn.innerText = "🟢 LISTENING FOR 'HEY JARVIS'...";
+        startContinuousListening();
+    } else {
+        btn.innerText = "🔴 WAKE WORD OFF";
+        stopContinuousListening();
+    }
+}
+
+function startContinuousListening() {
+    if (!rec) return;
+    
+    rec.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        console.log("Heard:", transcript);
+        
+        // Check if Wake Word exists in the heard phrase
+        if(transcript.includes(WAKE_WORD)) {
+            speak("Yes Boss?"); // Immediate feedback
+            setJarvisVisualState('LISTENING'); // Turn Orb Green
+            
+            // Now listen for the actual command for next 5 seconds
+            setTimeout(() => {
+                if(rec.listening) rec.stop(); 
+                // Restart normal single-shot listening logic here if needed
+                // For simplicity, we assume the next speech input is the command
+            }, 1000);
+        }
+    };
+    
+    rec.continuous = true; // Keep listening
+    rec.interimResults = true; // Show partial results
+    rec.start();
+}
+
+function stopContinuousListening() {
+    if(rec) rec.stop();
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://growthos.example/jarvis/tool-request.schema.json",
+  "title": "JARVIS Tool Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "tool", "target", "input", "issued_at"],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 8,
+      "description": "Unique identifier for this tool invocation."
+    },
+    "tool": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$",
+      "description": "Namespaced tool identifier, e.g. android.flashlight.set."
+    },
+    "target": {
+      "type": "string",
+      "enum": ["android", "pc", "cloud"]
+    },
+    "input": {
+      "type": "object"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 120000,
+      "default": 10000
+    },
+    "requires_confirmation": {
+      "type": "boolean",
+      "default": true
+    },
+    "idempotency_key": {
+      "type": "string"
+    }
+  }
+}

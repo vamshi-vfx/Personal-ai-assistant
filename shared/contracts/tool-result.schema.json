@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://growthos.example/jarvis/tool-result.schema.json",
+  "title": "JARVIS Tool Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "tool", "status", "verified", "completed_at"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "tool": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "awaiting_confirmation", "running", "succeeded", "failed", "cancelled", "timed_out"]
+    },
+    "result": {},
+    "error": {
+      "type": ["string", "null"]
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "True only when the target device/system state was independently checked."
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
